@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<!-- peerjs-frontend/index.html  jd & chatgpt4o  6-8 july 2024 -->
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PeerJS Video Chat</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/peer-connection.js"></script>
+    <script type="module" src="/video-management.js"></script>
+    <script type="module" src="/create-room.js"></script>
+</head>
+
+<body class="flex-col gap-1">
+    <h1>PeerJS Video Chat</h1>
+    <div>
+        <p>Your Peer ID: <span id="my-peer-id"></span></p>
+        <input type="text" id="peer-id" placeholder="Enter peer ID to connect">
+        <button id="connect">Connect</button>
+    </div>
+    <div>
+        <input type="text" id="room-name" placeholder="Enter room name">
+        <button id="create-room">Create Room</button>
+        <p>Room URL: <span id="room-url"></span></p>
+        <button id="copy-url" class="hidden">Copy URL</button>
+    </div>
+    <div>
+        <video id="local-video" autoplay muted></video>
+        <div id="remote-videos"></div>
+        <button id="start-record">Start Recording</button>
+        <button id="stop-record" disabled>Stop Recording</button>
+        <button id="save-record" disabled>Save Recording</button>
+        <button id="delete-record" disabled>Delete Recording</button>
+        <button id="upload-record">Save to Server</button>
+    </div>
+</body>
+
+</html>
