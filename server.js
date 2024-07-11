@@ -9,6 +9,7 @@ import { Server as SocketIOServer, Socket as SocketIO } from "socket.io";
 // Get server configuration
 const port = process.env.PORT && parseInt(process.env.PORT);
 const host = process.env.HOST ?? "0.0.0.0";
+const trust_proxy = !!process.env.TRUST_PROXY ?? false;
 if (!port || isNaN(port)) throw new Error("Set $PORT to a number");
 
 /** Error messages */
@@ -22,6 +23,8 @@ const errors = {
  */
 
 const app = express();
+
+if (trust_proxy) app.set("trust proxy", true);
 
 /** All the rooms @type {Map<string, Room>} */
 const roomByRoomID = new Map();
