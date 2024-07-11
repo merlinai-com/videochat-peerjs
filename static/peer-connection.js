@@ -7,7 +7,7 @@ const peer = new Peer(null, {
     host: window.location.hostname,
     port: window.location.port,
     path: '/peerjs',
-    secure: window.location.protocol === "https",
+    secure: window.location.protocol === "https:",
     config: {
         'iceServers': [
             { urls: ['stun:stun.l.google.com:19302'] }
