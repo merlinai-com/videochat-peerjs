@@ -81,9 +81,14 @@ export async function peerInit(socketio) {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: { echoCancellation: true } });
     elements.localVideo.srcObject = stream;
 
+    /** @type {import("peerjs").PeerOptions} */
+    const peerOptions = {
+
+    }
+
     const peer = new Peer({
         host: window.location.hostname,
-        port: window.location.port ? parseInt(window.location.port) : undefined,
+        port: window.location.port ? parseInt(window.location.port) : 443,
         path: '/peerjs',
         secure: window.location.protocol === "https:",
         config: {
