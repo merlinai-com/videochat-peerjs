@@ -6,6 +6,10 @@ import { ExpressPeerServer } from "peer";
 import * as uuid from "uuid";
 import { Server as SocketIOServer, Socket as SocketIO } from "socket.io";
 import * as path from "path";
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Get server configuration
 const port = process.env.PORT && parseInt(process.env.PORT);
@@ -45,7 +49,7 @@ const upload = multer({
 });
 
 // Set up static files
-app.use(express.static(path.join(import.meta.dirname, "static")));
+app.use(express.static(path.join(__dirname, "static")));
 
 app.post("/room/create", (req, res) => {
     const { name } = req.query;
