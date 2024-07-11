@@ -91,11 +91,12 @@ export async function peerInit(socketio) {
         port: window.location.port ? parseInt(window.location.port) : 443,
         path: '/peerjs',
         secure: window.location.protocol === "https:",
-        // config: {
-        //     'iceServers': [
-        //         { urls: ['stun:stun.l.google.com:19302'] }
-        //     ]
-        // },
+        config: {
+            iceServers: [
+                { urls: ['stun:stun.l.google.com:19302'] },
+                { urls: ["TURN:freeturn.net:3478"], username: "free", credential: "free" },
+            ]
+        },
         debug: 2, // Enable detailed logging
     });
 
