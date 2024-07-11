@@ -1,119 +1,32 @@
+// @ts-check
 // peerjs-frontend/js/peer-connection.js   jd & chatgpt4o  8 july 2024
 
-import "https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js";
-import { connectToRoom, roomID, elements, peerID, socketio } from "./utils.js";
+import { Peer } from "peerjs";
+import { elements } from "./utils.js";
 
-const peer = new Peer(null, {
-    host: window.location.hostname,
-    port: window.location.port,
-    path: '/peerjs',
-    secure: window.location.protocol === "https:",
-    config: {
-        'iceServers': [
-            { urls: ['stun:stun.l.google.com:19302'] }
-        ]
-    },
-    debug: 2 // Enable detailed logging
-});
+/**
+ * @typedef {Record<string, import("peerjs").DataConnection | import("peerjs").MediaConnection>} Connections
+ * @typedef {Record<"peerJoin" | "peerLeave", (otherID: string) => void>} PeerHandlers
+ */
 
-const connections = {};
-
-peer.on('open', async id => {
-    console.log('My peer ID is: ' + id);
-    elements.myPeerId.textContent = id;
-    peerID.peerID = id;
-    socketio.emit("/register", id);
-
-    // If this is a room URL, join the room
-    if (roomID) {
-        const roomInfo = await connectToRoom(roomID, id);
-        if (roomInfo === null) {
-            // TODO: warn user in the UI
-            return;
-        };
-        const { name: roomName, peers } = roomInfo;
-
-        console.log(`Joined room: ${roomName} (${roomID})`);
-        console.log('Current peers in the room:', peers);
-
-        // Set room name in the UI
-        elements.roomName.value = roomName;
-        elements.roomName.readOnly = true;
-        elements.createRoom.classList.add("hidden");
-        elements.roomUrlReadout.innerText = window.location.href;
-        elements.copyUrlButton.classList.remove("hidden");
-        elements.copyUrlButton.setAttribute("data-url", window.location.href);
-
-        // Notify all existing peers about the new peer
-        peers.forEach(peerId => {
-            if (peerId !== id) {
-                const conn = connectToPeer(peerId);
-                conn.send({ newPeer: id });
-            }
-        });
+/**
+ * @param {Connections} connections
+ * @param {string} otherID
+ */
+function removePeer(connections, otherID) {
+    const video = document.getElementById(otherID);
+    if (video) {
+        video.remove();
     }
-});
+    delete connections[otherID];
 
-peer.on('error', err => {
-    console.error('PeerJS error:', err);
-});
-
-peer.on('disconnected', () => {
-    console.log('Disconnected from the signalling server');
-});
-
-peer.on('close', () => {
-    console.log('Connection to PeerJS server closed');
-});
-
-document.getElementById('connect').addEventListener('click', () => {
-    const peerId = document.getElementById('peer-id').value;
-    connectToPeer(peerId);
-});
-
-navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-    .then(stream => {
-        const localVideo = document.getElementById('local-video');
-        localVideo.srcObject = stream;
-        window.localStream = stream;
-
-        peer.on('call', call => {
-            call.answer(stream);
-            handleCall(call);
-        });
-
-        peer.on('connection', conn => {
-            conn.on('data', data => {
-                if (data === 'request-stream') {
-                    const call = peer.call(conn.peer, stream);
-                    handleCall(call);
-                } else if (data.newPeer) {
-                    console.log('New peer joined:', data.newPeer); // Log new peer ID
-                    connectToPeer(data.newPeer);
-                }
-            });
-        });
-    })
-    .catch(err => console.error('Failed to get local stream', err));
-
-function connectToPeer(peerId) {
-    if (!connections[peerId]) {
-        const conn = peer.connect(peerId);
-        conn.on('open', () => {
-            conn.send('request-stream');
-        });
-        conn.on('data', data => {
-            if (data === 'request-stream') {
-                const call = peer.call(peerId, window.localStream);
-                handleCall(call);
-            }
-        });
-        connections[peerId] = conn;
-    }
-    return connections[peerId];
 }
 
-function handleCall(call) {
+/**
+ * @param {Connections} connections
+ * @param {import("peerjs").MediaConnection} call
+ */
+function handleCall(connections, call) {
     call.on('stream', remoteStream => {
         if (!document.getElementById(call.peer)) {
             const video = document.createElement('video');
@@ -126,19 +39,106 @@ function handleCall(call) {
     });
 
     call.on('close', () => {
-        const video = document.getElementById(call.peer);
-        if (video) {
-            video.remove();
-        }
-        delete connections[call.peer];
+        removePeer(connections, call.peer);
     });
 }
 
-// // Override the default console.log behavior to filter ICE candidate messages
-// const originalConsoleLog = console.log;
-// console.log = function (message, ...optionalParams) {
-//     if (typeof message === 'string' && message.includes('ICE candidate')) {
-//         return; // Filter out ICE candidate messages
-//     }
-//     originalConsoleLog.apply(console, [message, ...optionalParams]);
-// };
+
+/**
+ * @param {Peer} peer
+ * @param {Connections} connections
+ * @param {MediaStream} localStream
+ * @param {string} otherID
+ */
+function connectToPeer(peer, connections, localStream, otherID) {
+    if (!connections[otherID]) {
+        const conn = peer.connect(otherID);
+        conn.on('open', () => {
+            conn.send('request-stream');
+        });
+        conn.on('data', data => {
+            if (data === 'request-stream') {
+                console.log("connectToPeer, reply to request-stream")
+                const call = peer.call(otherID, localStream);
+                handleCall(connections, call);
+            }
+        });
+        connections[otherID] = conn;
+    }
+    return connections[otherID];
+}
+
+
+/**
+ * @param {import("socket.io").Socket} socketio
+ * @returns {Promise<{
+ *  localStream: MediaStream,
+ *  peerHandlers: PeerHandlers,
+ *  peerID: string,
+ * }>}
+ */
+export async function peerInit(socketio) {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: { echoCancellation: true } });
+    elements.localVideo.srcObject = stream;
+
+    const peer = new Peer({
+        host: window.location.hostname,
+        port: window.location.port ? parseInt(window.location.port) : undefined,
+        path: '/peerjs',
+        secure: window.location.protocol === "https:",
+        config: {
+            'iceServers': [
+                { urls: ['stun:stun.l.google.com:19302'] }
+            ]
+        },
+        debug: 2, // Enable detailed logging
+    });
+
+    /** All connections to other peers @type {Record<string, any>} */
+    const connections = {};
+
+    const peerReady = new Promise((resolve) => {
+        peer.on('open', async peerID => {
+            console.log('My peer ID is: ' + peerID);
+            socketio.emit("/register", peerID);
+            resolve({ peerID })
+        });
+    });
+
+    peer.on("error", (error) => {
+        console.error("PeerJS error:", error);
+    });
+
+    peer.on('disconnected', () => {
+        console.log('Disconnected from the signalling server');
+    });
+
+    peer.on('close', () => {
+        console.log('Connection to PeerJS server closed');
+    });
+
+    peer.on('call', call => {
+        call.answer(stream);
+        handleCall(connections, call);
+    });
+
+    peer.on('connection', conn => {
+        conn.on('data', data => {
+            if (data === 'request-stream') {
+                const call = peer.call(conn.peer, stream);
+                handleCall(connections, call);
+            }
+        });
+    });
+
+    const peerID = await peerReady;
+
+    return {
+        localStream: stream,
+        peerHandlers: {
+            peerJoin: (otherID) => connectToPeer(peer, connections, stream, otherID),
+            peerLeave: (otherID) => { delete connections[otherID] },
+        },
+        peerID,
+    }
+}

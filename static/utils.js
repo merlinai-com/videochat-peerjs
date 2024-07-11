@@ -1,33 +1,7 @@
 // @ts-check
 
-// @ts-ignore
-import { io } from "/socket.io/socket.io.esm.min.js";
-
 /** The current room ID @type {string | null} */
 export const roomID = new URL(window.location.href).searchParams.get("room");
-/** The current peer ID @type {{peerID?: string}} */
-export let peerID = {};
-
-/**
- * Get information about a room
- * @param {string} roomID
- * @param {string} userID
- * @returns {Promise<{name: string, peers: string[]} | null>}
- */
-export async function connectToRoom(roomID, userID) {
-    const res = await fetch(`/room/connect/${roomID}/${userID}`, { method: "POST" });
-    if (res.status === 404) {
-        // Room not found
-        console.warn(`Room ${roomID} not found`);
-        return null;
-    } else if (!res.ok) {
-        console.error(`Unexpected error: ${res.status} ${res.statusText}`);
-        console.debug(res);
-        return null;
-    } else {
-        return await res.json();
-    }
-}
 
 /**
  * @template T
@@ -45,13 +19,13 @@ function getElementById(id, cls) {
 /** Interactive elements */
 export const elements = Object.freeze({
     // Connecting
-    myPeerId: getElementById("my-peer-id", HTMLElement),
     roomName: getElementById("room-name", HTMLInputElement),
     createRoom: getElementById("create-room", HTMLButtonElement),
     roomUrlReadout: getElementById("room-url", HTMLElement),
     copyUrlButton: getElementById("copy-url", HTMLButtonElement),
 
     // Playback
+    localVideo: getElementById("local-video", HTMLVideoElement),
     remoteVideos: getElementById("remote-videos", HTMLElement),
 
     // Recording
@@ -62,5 +36,13 @@ export const elements = Object.freeze({
     uploadRecord: getElementById("upload-record", HTMLButtonElement),
 });
 
-/** @type {import("socket.io").Socket} */
-export const socketio = io();
+/** Get a URL for a roomID/roomName
+ * @param {string} roomID
+ * @param {string} roomName
+*/
+export function getRoomURL(roomID, roomName) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("name", roomName);
+    url.searchParams.set("room", roomID);
+    return url.href;
+}

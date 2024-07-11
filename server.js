@@ -5,6 +5,7 @@ import multer from "multer";
 import { ExpressPeerServer } from "peer";
 import * as uuid from "uuid";
 import { Server as SocketIOServer, Socket as SocketIO } from "socket.io";
+import * as path from "path";
 
 // Get server configuration
 const port = process.env.PORT && parseInt(process.env.PORT);
@@ -44,7 +45,7 @@ const upload = multer({
 });
 
 // Set up static files
-app.use(express.static("static"));
+app.use(express.static(path.join(import.meta.dirname, "static")));
 
 app.post("/room/create", (req, res) => {
     const { name } = req.query;
@@ -62,20 +63,14 @@ app.post("/room/create", (req, res) => {
 
 app.get("/room/info/:roomID", (req, res) => {
     const { roomID } = req.params;
-});
-
-app.post("/room/connect/:roomID/:peerID", (req, res) => {
-    const { roomID, peerID } = req.params;
     const room = roomByRoomID.get(roomID);
     if (!room) return res.status(404).send(errors.roomNotFound);
-    room.peers.add(peerID);
     res.json({
         name: room.name,
-        peers: [...room.peers],
-    })
+    });
 });
 
-app.post("/upload", upload.single("file"), (req, res, next) => {
+app.post("/upload", upload.single("file"), (req, res) => {
     console.log(req.file);
     res.send({ status: "ok" });
 });
@@ -88,7 +83,6 @@ const socketIO = new SocketIOServer(server);
 
 socketIO.on("connect", (socket) => {
     socket.on("/register", (peerID) => {
-        console.log("register");
         socketByPeerID.set(peerID, socket);
         peerIDBySocket.set(socket, peerID);
     });
@@ -96,15 +90,9 @@ socketIO.on("connect", (socket) => {
     socket.on("/room/video", ({ roomID, message }) => {
         const room = roomByRoomID.get(roomID);
         const peerID = peerIDBySocket.get(socket);
-        if (!room) {
-            socket.emit("error", errors.roomNotFound.message);
-            return;
-        }
-        if (!peerID) {
-            socket.emit("error", errors.notRegistered);
-            return;
-        }
-        console.log({ roomID, peerID, message });
+        if (!room) return void socket.emit("error", errors.roomNotFound.message);
+        if (!peerID) return void socket.emit("error", errors.notRegistered);
+
         for (const peer of room.peers) {
             if (peer !== peerID) {
                 const sock = socketByPeerID.get(peer);
@@ -112,6 +100,21 @@ socketIO.on("connect", (socket) => {
             }
         }
     });
+
+    socket.on("/room/join", ({ roomID }) => {
+        const room = roomByRoomID.get(roomID);
+        const peerID = peerIDBySocket.get(socket);
+        if (!room) return void socket.emit("error", errors.roomNotFound.message);
+        if (!peerID) return void socket.emit("error", errors.notRegistered);
+        for (const otherID of room.peers) {
+            if (otherID !== peerID) {
+                socketByPeerID.get(otherID)?.emit("/room/peer-join", { peerID });
+                socket.emit("/room/peer-join", { peerID: otherID });
+            }
+        }
+        room.peers.add(peerID);
+        roomByPeerID.set(peerID, room);
+    })
 });
 
 // Start peer.js server
@@ -124,6 +127,11 @@ app.use("/peerjs", peerServer);
 peerServer.on("disconnect", (client) => {
     const peerID = client.getId();
     const room = roomByPeerID.get(peerID);
-    if (room) room.peers.delete(peerID);
+    if (room) {
+        room.peers.delete(peerID);
+        for (const otherID of room.peers) {
+            socketByPeerID.get(otherID)?.emit("/room/peer-leave", { peerID });
+        }
+    }
     socketByPeerID.delete(peerID);
-})
+});

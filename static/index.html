@@ -7,19 +7,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PeerJS Video Chat</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="/style.css" />
-    <script type="module" src="/peer-connection.js"></script>
-    <script type="module" src="/video-management.js"></script>
-    <script type="module" src="/create-room.js"></script>
+    <link rel="stylesheet" href="./style.css" />
+    <script type="importmap">
+        {
+            "imports": {
+                "peerjs": "https://cdn.jsdelivr.net/npm/peerjs@1.5.4/+esm"
+            }
+        }
+    </script>
+    <script type="module" defer src="./index.js"></script>
 </head>
 
 <body class="flex-col gap-1">
     <h1>PeerJS Video Chat</h1>
-    <div>
-        <p>Your Peer ID: <span id="my-peer-id"></span></p>
-        <input type="text" id="peer-id" placeholder="Enter peer ID to connect">
-        <button id="connect">Connect</button>
-    </div>
     <div>
         <input type="text" id="room-name" placeholder="Enter room name">
         <button id="create-room">Create Room</button>
