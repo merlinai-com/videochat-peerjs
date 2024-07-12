@@ -20,9 +20,15 @@
 
 <body class="flex-col gap-1">
     <h1>PeerJS Video Chat</h1>
+    {{#if user}}
     <div>
         Logged in as {{user.name}} ({{user.email}})
     </div>
+    {{^}}
+    <div>
+        <a href="/auth/login">Log in</a>
+    </div>
+    {{/if}}
     <div>
         <input type="text" id="room-name" placeholder="Enter room name">
         <button id="create-room">Create Room</button>
