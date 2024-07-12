@@ -68,13 +68,21 @@ app.set("view engine", "hbs");
 
 // Log in
 app.get("/auth/login", (req, res) => {
-    res.render("login.hbs", { cache: false, loginUrl: sso.loginURL(getRedirectUrl(req, "/auth/complete-login")) });
+    res.render("login.hbs", {
+        cache: false,
+        loginUrl: sso.loginURL(getRedirectUrl(req, "/auth/complete-login")).href,
+        logoutUrl: sso.logoutURL(getRedirectUrl(req, "/auth/complete-login")).href,
+    });
 });
 
 app.get("/", (req, res) => {
     /** @type {{user: import("sso").User, session: import("sso").Session}} */
     const { user, session } = req.locals;
-    res.render("index.hbs", {cache: false, user, session });
+    res.render("index.hbs", {
+        cache: false, user, session,
+        loginUrl: sso.loginURL(getRedirectUrl(req, "/auth/complete-login")).href,
+        logoutUrl: sso.logoutURL(getRedirectUrl(req, "/auth/complete-login")).href,
+    });
 })
 
 app.post("/room/create", (req, res) => {

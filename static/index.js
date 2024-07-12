@@ -27,6 +27,27 @@ async function main(roomInfo, socketio, peerHandlers) {
     }
 }
 
+async function loginInit() {
+    const loginButton = document.getElementById("login-button");
+    const loginUrl = loginButton?.getAttribute("data-login-url");
+    if (loginButton instanceof HTMLButtonElement) {
+        const callback = async () => {
+            try {
+                // @ts-ignore
+                await document.requestStorageAccessFor(new URL(loginUrl).origin);
+            } catch (e) {
+                console.error("Unable to request storage access:", e);
+            } finally {
+                window.location.pathname = "/auth/login";
+            }
+        }
+        loginButton.addEventListener("click", callback);
+        loginButton.addEventListener("keypress", ({ key }) => {
+            if (key === "Enter") callback();
+        })
+    }
+}
+
 /** Initialisation after page load */
 async function init() {
     console.log("init");
@@ -39,6 +60,7 @@ async function init() {
     await recordingInit(socketio, localStream, peerID);
 
     await main(roomInfo, socketio, peerHandlers);
+    await loginInit();
 }
 
 document.addEventListener("DOMContentLoaded", init);

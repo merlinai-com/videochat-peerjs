@@ -23,10 +23,11 @@
     {{#if user}}
     <div>
         Logged in as {{user.name}} ({{user.email}})
+        <a href="{{logoutUrl}}">Log out</a>
     </div>
     {{^}}
     <div>
-        <a href="/auth/login">Log in</a>
+        <button role="link" id="login-button" data-login-url="{{loginUrl}}">Log in</a>
     </div>
     {{/if}}
     <div>
