@@ -8,6 +8,10 @@ import { Server as SocketIOServer, Socket as SocketIO } from "socket.io";
 import * as path from "path";
 import { dirname } from "path";
 import { fileURLToPath } from "url";
+import { SSO } from "sso";
+import cookieParser from "cookie-parser";
+import { getRedirectUrl, ssoMiddleware } from "./sso.js";
+// import hbs from "hbs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -15,7 +19,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const port = process.env.PORT && parseInt(process.env.PORT);
 const host = process.env.HOST ?? "0.0.0.0";
 const trust_proxy = !!process.env.TRUST_PROXY ?? false;
+const ssoDomain = process.env.SSO_DOMAIN;
 if (!port || isNaN(port)) throw new Error("Set $PORT to a number");
+if (!ssoDomain) throw new Error("Set $SSO_ORIGIN");
 
 /** Error messages */
 const errors = {
@@ -28,6 +34,12 @@ const errors = {
  */
 
 const app = express();
+
+// SSO
+app.use(cookieParser());
+const sso = new SSO(ssoDomain, undefined, false);
+
+app.use(ssoMiddleware(sso));
 
 if (trust_proxy) app.set("trust proxy", true);
 
@@ -49,7 +61,21 @@ const upload = multer({
 });
 
 // Set up static files
-app.use(express.static(path.join(__dirname, "static")));
+app.use(express.static(path.join(__dirname, "static"), { extensions: ["html"] }));
+
+// Set up templating engine
+app.set("view engine", "hbs");
+
+// Log in
+app.get("/auth/login", (req, res) => {
+    res.render("login.hbs", { cache: false, loginUrl: sso.loginURL(getRedirectUrl(req, "/auth/complete-login")) });
+});
+
+app.get("/", (req, res) => {
+    /** @type {{user: import("sso").User, session: import("sso").Session}} */
+    const { user, session } = req.locals;
+    res.render("index.hbs", {cache: false, user, session });
+})
 
 app.post("/room/create", (req, res) => {
     const { name } = req.query;
