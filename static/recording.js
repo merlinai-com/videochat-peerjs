@@ -1,6 +1,8 @@
 // @ts-check
 // static/recording.js   zoe + jd
 
+// recording.js
+
 import { elements, roomID } from "./utils.js";
 
 let timerInterval;
@@ -90,6 +92,8 @@ export async function recordingInit(socketio, localStream, peerID) {
             socketio.emit("/room/video", { roomID, peerID, message: "record/upload" });
     });
 
+    document.getElementById('downloadRecord').addEventListener('click', downloadRecording);
+
     function startRecording(stream) {
         recordedChunks = [];
         mediaRecorder = new MediaRecorder(stream, { mimeType: recorderMimeType });
@@ -103,6 +107,9 @@ export async function recordingInit(socketio, localStream, peerID) {
             elements.stopRecord.disabled = true;
             elements.saveRecord.disabled = false;
             clearInterval(timerInterval);
+
+            // Enable download button
+            document.getElementById('downloadRecord').disabled = false;
         });
         mediaRecorder.start();
         elements.startRecord.disabled = true;
@@ -209,6 +216,18 @@ export async function recordingInit(socketio, localStream, peerID) {
         request.addEventListener("error", function (event) {
             console.error('Error retrieving videos:', event.target.errorCode);
         });
+    }
+
+    function downloadRecording() {
+        const blob = new Blob(recordedChunks, { type: recorderMimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = 'recording.webm';
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(url);
     }
 
     function formatTime(ms) {
