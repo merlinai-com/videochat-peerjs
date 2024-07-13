@@ -89,6 +89,7 @@ app.use((req, res, next) => {
 app.get("/", (req, res, next) => {
     if (req.locals && req.locals.user) {
         console.log("User ID on refresh:", req.locals.user.id);
+        console.log("User Name on refresh:", req.locals.user.name);        
     } else {
         console.log("No user ID available.");
     }
@@ -132,7 +133,11 @@ app.get("/room/info/:roomID", (req, res) => {
 
 // UPLOAD RECORDED FILE(S) TO SERVER //
 app.post("/upload", upload.single("file"), (req, res) => {
+    const userId = req.user ? req.user.id : 'no-id';
     const username = req.user ? req.user.name : 'anon';
+
+    console.log("on upload - User ID: ", userId, " User Name: ", username);  // Print user params to the server console
+    
     const oldPath = req.file.path;
     const newPath = path.join(path.dirname(oldPath), `${username}_${path.basename(oldPath)}.webm`);
 
