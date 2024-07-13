@@ -131,25 +131,16 @@ app.get("/room/info/:roomID", (req, res) => {
 
 
 
-// UPLOAD RECORDED FILE(S) TO SERVER //
+// UPLOAD RECORDED FILE(S) TO SERVER
 app.post("/upload", upload.single("file"), (req, res) => {
     const userId = req.user ? req.user.id : 'no-id';
     const username = req.user ? req.user.name : 'anon';
 
-    console.log("on upload - User ID: ", userId, " User Name: ", username);  // Print user params to the server console
-    
-    const oldPath = req.file.path;
-    const newPath = path.join(path.dirname(oldPath), `${username}_${path.basename(oldPath)}.webm`);
+    console.log("on upload - User ID:", userId, "User Name:", username);  // Print user params to the server console
 
+    const newPath = path.join(__dirname, "uploads", `${username}.webm`);
 
-    // const userId = req.user ? req.user.id : 'anon';
-    // const username = req.user ? req.user.name : 'anon';
-    // console.log("User ID:", userId);  // Print user ID to the server console
-
-    // const newPath = path.join(__dirname, "uploads", `${username}_${userId}.webm`);
-
-
-    fs.rename(oldPath, newPath, (err) => {
+    fs.rename(req.file.path, newPath, (err) => {
         if (err) {
             console.error("File renaming failed", err);
             res.status(500).send({ status: "error", message: "File renaming failed" });
