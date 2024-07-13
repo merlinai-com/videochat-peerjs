@@ -135,13 +135,13 @@ app.get("/room/info/:roomID", (req, res) => {
 // UPLOAD RECORDED FILE(S) TO SERVER
 app.post("/upload", upload.single("file"), (req, res) => {
     const userId = req.user ? req.user.id.replace('user:', '').substring(0, 5) : 'no-id';
-    const username = req.user ? req.user.name : 'anon';
-    // const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '¬').slice(0, -1); 
+    let username = req.user ? req.user.name : 'anon';
+    username = username.replace(/ /g, '-');
 
     let timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').slice(0, -1);
     timestamp = timestamp.replace(/-(\d{3})$/, '.$1');
 
-    const newPath = path.join(__dirname, "uploads", `${username}-u${userId}_${timestamp}-UTC.webm`);
+    const newPath = path.join(__dirname, "uploads", `${username}_u-${userId}_${timestamp}-UTC.webm`);
 
     fs.rename(req.file.path, newPath, (err) => {
         if (err) {
