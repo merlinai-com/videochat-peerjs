@@ -12,6 +12,7 @@ import { SSO } from "sso";
 import cookieParser from "cookie-parser";
 import { getRedirectUrl, ssoMiddleware } from "./sso.js";
 // import hbs from "hbs";
+import fs from 'fs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -108,20 +109,31 @@ app.get("/room/info/:roomID", (req, res) => {
     });
 });
 
-// UPLOAD RECORDED FILE(S) TO SERVER
-import fs from 'fs';
-
-app.post("/upload", upload.single("file"), (req, res) => {
-    const oldPath = req.file.path;
-    const newPath = `${oldPath}.webm`;
-
-    fs.rename(oldPath, newPath, () => {
-        console.log("File renamed successfully");
-        res.send({ status: "ok", filePath: newPath });
-    });
+// Middleware to attach user info to req
+app.use((req, res, next) => {
+    const { user, session } = req.locals || {};
+    if (user) {
+        req.user = user;
+    }
+    next();
 });
 
+// UPLOAD RECORDED FILE(S) TO SERVER
+app.post("/upload", upload.single("file"), (req, res) => {
+    const username = req.user ? req.user.name : 'anon';
+    const oldPath = req.file.path;
+    const newPath = path.join(path.dirname(oldPath), `${username}_${path.basename(oldPath)}.webm`);
 
+    fs.rename(oldPath, newPath, (err) => {
+        if (err) {
+            console.error("File renaming failed", err);
+            res.status(500).send({ status: "error", message: "File renaming failed" });
+        } else {
+            console.log("File renamed successfully");
+            res.send({ status: "ok", filePath: newPath });
+        }
+    });
+});
 
 // Start the express server
 const server = app.listen(port, host, () => console.log(`Listening on ${host}:${port}`));
