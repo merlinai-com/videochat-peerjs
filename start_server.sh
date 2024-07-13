@@ -7,12 +7,12 @@
 
 
 ## Load nvm
-# export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
-# [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
 ## Install and use Node.js 20.2.0
 # nvm install 20.2.0
-# nvm use 20.2.0
+nvm use 20.2.0
 
 # Load environment variables from .env file
 set -a
@@ -26,4 +26,5 @@ set +a
 # fi
 
 # Start the server with PM2
-pm2 start server.js --watch
+## pm2 start server.js --watch
+pm2 start pm2.config.cjs --watch
