@@ -108,28 +108,19 @@ app.get("/room/info/:roomID", (req, res) => {
     });
 });
 
-// app.post("/upload", upload.single("file"), (req, res) => {
-//     console.log(req.file);
-//     res.send({ status: "ok" });
-// });
+// UPLOAD RECORDED FILE(S) TO SERVER
+import fs from 'fs';
 
 app.post("/upload", upload.single("file"), (req, res) => {
-    if (req.file) {
-        const oldPath = req.file.path;
-        const newPath = `${oldPath}.webm`;
+    const oldPath = req.file.path;
+    const newPath = `${oldPath}.webm`;
 
-        fs.rename(oldPath, newPath, (err) => {
-            if (err) {
-                console.error("Failed to rename file", err);
-                return res.status(500).send({ status: "error", message: "File renaming failed" });
-            }
-            console.log("File renamed successfully");
-            res.send({ status: "ok", filePath: newPath });
-        });
-    } else {
-        res.status(400).send({ status: "error", message: "No file uploaded" });
-    }
+    fs.rename(oldPath, newPath, () => {
+        console.log("File renamed successfully");
+        res.send({ status: "ok", filePath: newPath });
+    });
 });
+
 
 
 // Start the express server

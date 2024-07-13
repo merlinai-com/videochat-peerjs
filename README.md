@@ -18,6 +18,21 @@ HOST=localhost
 
 ## Running
 
+Now using pm2
+
 ```bash
-./start_server.sh
+pm2 start server
+pm2 status server
+pm2 stop server
+pm2 restart server
 ```
+### example 
+jd@zeus01-dev:/APPS/_DEV/videochat-peerjs$ pm2 start server
+
+#### legacy
+./start_server.sh
+
+## diary - jd
+added pm2  
+webm extension added
+
