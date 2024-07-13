@@ -133,10 +133,10 @@ app.get("/room/info/:roomID", (req, res) => {
 
 // UPLOAD RECORDED FILE(S) TO SERVER
 app.post("/upload", upload.single("file"), (req, res) => {
-    const userId = req.user ? req.user.id.replace('user:', '') : 'no-id';
+    const userId = req.user ? req.user.id.replace('user:', '').substring(0, 5) : 'no-id';
     const username = req.user ? req.user.name : 'anon';
 
-    console.log("on upload - User ID:", userId, "User Name:", username);  // Print user params to the server console
+    console.log("on upload - Short User ID:", userId, "User Name:", username);  // Print user params to the server console
 
     const newPath = path.join(__dirname, "uploads", `${username}_${userId}.webm`);
 
