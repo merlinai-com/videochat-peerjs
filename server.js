@@ -76,6 +76,25 @@ app.get("/auth/login", (req, res) => {
     });
 });
 
+// Middleware to attach user info to req
+app.use((req, res, next) => {
+    const { user, session } = req.locals || {};
+    if (user) {
+        req.user = user;
+    }
+    next();
+});
+
+// Log User ID on Page Refresh
+app.get("/", (req, res, next) => {
+    if (req.locals && req.locals.user) {
+        console.log("User ID on refresh:", req.locals.user.id);
+    } else {
+        console.log("No user ID available.");
+    }
+    next();
+});
+
 app.get("/", (req, res) => {
     /** @type {{user: import("sso").User, session: import("sso").Session}} */
     const { user, session } = req.locals;
@@ -109,14 +128,7 @@ app.get("/room/info/:roomID", (req, res) => {
     });
 });
 
-// Middleware to attach user info to req
-app.use((req, res, next) => {
-    const { user, session } = req.locals || {};
-    if (user) {
-        req.user = user;
-    }
-    next();
-});
+
 
 // UPLOAD RECORDED FILE(S) TO SERVER
 app.post("/upload", upload.single("file"), (req, res) => {
