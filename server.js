@@ -132,13 +132,16 @@ app.get("/room/info/:roomID", (req, res) => {
 
 
 // UPLOAD RECORDED FILE(S) TO SERVER
+// UPLOAD RECORDED FILE(S) TO SERVER
 app.post("/upload", upload.single("file"), (req, res) => {
     const userId = req.user ? req.user.id.replace('user:', '').substring(0, 5) : 'no-id';
     const username = req.user ? req.user.name : 'anon';
+    // const timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '¬').slice(0, -1); 
 
-    console.log("on upload - Short User ID:", userId, "User Name:", username);  // Print user params to the server console
+    let timestamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').slice(0, -1);
+    timestamp = timestamp.replace(/-(\d{3})$/, '.$1');
 
-    const newPath = path.join(__dirname, "uploads", `${username}_${userId}.webm`);
+    const newPath = path.join(__dirname, "uploads", `${username}-u${userId}_${timestamp}-UTC.webm`);
 
     fs.rename(req.file.path, newPath, (err) => {
         if (err) {
@@ -150,6 +153,7 @@ app.post("/upload", upload.single("file"), (req, res) => {
         }
     });
 });
+
 
 // Start the express server
 const server = app.listen(port, host, () => console.log(`Listening on ${host}:${port}`));
