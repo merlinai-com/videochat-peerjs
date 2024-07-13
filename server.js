@@ -130,8 +130,6 @@ app.get("/room/info/:roomID", (req, res) => {
 });
 
 
-
-// UPLOAD RECORDED FILE(S) TO SERVER
 // UPLOAD RECORDED FILE(S) TO SERVER
 app.post("/upload", upload.single("file"), (req, res) => {
     const userId = req.user ? req.user.id.replace('user:', '').substring(0, 5) : 'no-id';

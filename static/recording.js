@@ -1,7 +1,11 @@
 // @ts-check
-// peerjs-frontend/js/video-management.js   jd & chatgpt4o   8 july 2024
+// static/recording.js   zoe + jd
 
 import { elements, roomID } from "./utils.js";
+
+let timerInterval;
+let startTime;
+let elapsedTime = 0;
 
 /**
  * @param {import("socket.io").Socket} socketio
@@ -98,14 +102,23 @@ export async function recordingInit(socketio, localStream, peerID) {
             elements.startRecord.disabled = false;
             elements.stopRecord.disabled = true;
             elements.saveRecord.disabled = false;
+            clearInterval(timerInterval);
         });
         mediaRecorder.start();
         elements.startRecord.disabled = true;
         elements.stopRecord.disabled = false;
+
+        // Start the timer
+        startTime = Date.now() - elapsedTime;
+        timerInterval = setInterval(() => {
+            elapsedTime = Date.now() - startTime;
+            document.getElementById("recording-timer").innerText = formatTime(elapsedTime);
+        }, 1000);
     }
 
     function stopRecording() {
         mediaRecorder.stop();
+        clearInterval(timerInterval);
     }
 
     function saveRecording() {
@@ -196,5 +209,13 @@ export async function recordingInit(socketio, localStream, peerID) {
         request.addEventListener("error", function (event) {
             console.error('Error retrieving videos:', event.target.errorCode);
         });
+    }
+
+    function formatTime(ms) {
+        const totalSeconds = Math.floor(ms / 1000);
+        const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+        const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+        const seconds = String(totalSeconds % 60).padStart(2, '0');
+        return `${hours}:${minutes}:${seconds}`;
     }
 }

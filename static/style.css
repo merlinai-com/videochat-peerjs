@@ -16,3 +16,10 @@ p {
 .hidden {
     display: none;
 }
+
+/* Add this to style.css */
+#recording-timer {
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-top: 10px;
+}
