@@ -16,9 +16,18 @@ HOST=localhost
 - `PORT` is the port to listen on
 - `HOST` is the IP address to listen on, or `localhost`
 
+## Location
+`/APPS/_DEV/videochat-peerjs`
+
 ## Running
 
-Now using pm2
+Now using pm2, but still use:
+
+```
+./start_server.sh
+```
+
+these will also work, as long as `pm2` is installed and `PATH` is correct:
 
 ```bash
 pm2 start server
@@ -27,10 +36,8 @@ pm2 stop server
 pm2 restart server
 ```
 ### example 
-jd@zeus01-dev:/APPS/_DEV/videochat-peerjs$ pm2 start server
+jd@zeus01-dev:/APPS/_DEV/videochat-peerjs$ ./start_server.sh
 
-#### legacy
-./start_server.sh
 
 ## diary - jd
 added pm2  
