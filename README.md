@@ -17,17 +17,18 @@ HOST=localhost
 - `HOST` is the IP address to listen on, or `localhost`
 
 ## Location
-`/APPS/_DEV/videochat-peerjs`
+`zeus01-dev:/APPS/_DEV/videochat-peerjs`
 
 ## Running
-
 Now using pm2, but still use:
 
 ```
 ./start_server.sh
 ```
 
-these will also work, as long as `pm2` is installed and `PATH` is correct:
+Check contents of `start_server.sh` before using it.  
+
+These will also work, as long as `pm2` is installed and `PATH` is correct:
 
 ```bash
 pm2 start server
@@ -43,5 +44,5 @@ jd@zeus01-dev:/APPS/_DEV/videochat-peerjs$ ./start_server.sh
 added pm2  
 webm extension added
 
-# BRANCH HISTORY
+## BRANCH HISTORY
 create `stream-video-only` from `streaming-upload`
