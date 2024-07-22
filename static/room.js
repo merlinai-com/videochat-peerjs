@@ -58,7 +58,8 @@ export async function roomInit() {
             }
         }
     } else {
-        elements.createRoom.addEventListener('click', async () => {
+        elements.roomForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
             const roomName = elements.roomName.value;
             const res = await fetch("/room/create?" + new URLSearchParams({ name: roomName }).toString(), { method: "POST" });
             if (!res.ok) {

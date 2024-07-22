@@ -31,8 +31,10 @@
     </div>
     {{/if}}
     <div>
-        <input type="text" id="room-name" placeholder="Enter room name">
-        <button id="create-room">Create Room</button>
+        <form id="room-form">
+            <input type="text" id="room-name" placeholder="Enter room name" required />
+            <button type="submit" id="create-room">Create Room</button>
+        </form>
         <p>Room URL: <span id="room-url"></span></p>
         <button id="copy-url" class="hidden">Copy URL</button>
     </div>

@@ -19,6 +19,7 @@ function getElementById(id, cls) {
 /** Interactive elements */
 export const elements = {
     // Connecting
+    roomForm: getElementById("room-form", HTMLFormElement),
     roomName: getElementById("room-name", HTMLInputElement),
     createRoom: getElementById("create-room", HTMLButtonElement),
     roomUrlReadout: getElementById("room-url", HTMLElement),

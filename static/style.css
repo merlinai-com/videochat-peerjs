@@ -39,3 +39,7 @@ a.button:hover:not(.disabled),
 button:hover:not(:disabled) {
     background-color: #d0d0d7;
 }
+
+form {
+    display: contents;
+}
