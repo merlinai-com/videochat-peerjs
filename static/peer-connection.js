@@ -83,22 +83,20 @@ export async function peerInit(socketio) {
 
     /** @type {import("peerjs").PeerOptions} */
     const peerOptions = {
-
-    }
-
-    const peer = new Peer({
         host: window.location.hostname,
         port: window.location.port ? parseInt(window.location.port) : 443,
-        path: '/peerjs',
+        path: "/peerjs",
         secure: window.location.protocol === "https:",
         config: {
             iceServers: [
-                { urls: ['stun:stun.l.google.com:19302'] },
-                { urls: ["TURN:freeturn.net:3478"], username: "free", credential: "free" },
+                { urls: ['stun:videochat-dev.getzap.co'] },
+                { urls: ['turn:videochat-dev.getzap.co'], username: "dev", credential: "dev" },
             ]
         },
-        debug: 2, // Enable detailed logging
-    });
+        debug: 2,
+    }
+
+    const peer = new Peer(peerOptions);
 
     /** All connections to other peers @type {Record<string, any>} */
     const connections = {};
