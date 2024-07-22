@@ -90,7 +90,7 @@ export async function peerInit(socketio) {
         config: {
             iceServers: [
                 { urls: ['stun:videochat-dev.getzap.co:5349'] },
-                { urls: ['turn:videochat-dev.getzap.co:5349'], username: "dev", credential: "dev" },
+                // { urls: ['turn:videochat-dev.getzap.co:5349'], username: "dev", credential: "dev" },
             ]
         },
         debug: 2,
