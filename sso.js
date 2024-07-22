@@ -1,6 +1,10 @@
 // @ts-check
 
 /**
+ * @typedef {{ user: import("sso").User, session: import("sso").Session } | { user: undefined, session: undefined }} Locals
+ */
+
+/**
  * @param {import("express").Request} req
  * @param {import("express").Response} res
  * @returns {import("sso").Cookies}
@@ -12,6 +16,33 @@ function makeCookies(req, res) {
         },
         set(cookie) {
             res.cookie(cookie.name, cookie.value, cookie.attributes);
+        },
+    }
+}
+
+/**
+ * Parse raw request cookies in a context that doesn't support setting cookies
+ * @param {string | undefined} rawCookies
+ * @returns {import("sso").Cookies}
+ */
+export function parseReadonlyCookies(rawCookies) {
+    const cookies = {};
+    if (rawCookies) {
+        rawCookies.split("; ").forEach(c => {
+            const match = /^(?<name>[^=]*)=(?<value>.*)$/.exec(c);
+            if (match && match.groups) {
+                cookies[match.groups.name] = match.groups.value;
+            }
+        });
+    }
+
+    return {
+        get(name) {
+            console.log(cookies, name);
+            return cookies[name];
+        },
+        set(cookie) {
+            // do nothing
         },
     }
 }
@@ -30,7 +61,7 @@ export function getRedirectUrl(req, path) {
  */
 export function ssoMiddleware(sso) {
     return async (req, res, next) => {
-        const fullUrl = new URL(`${req.protocol}://${req.get("host")}${req.originalUrl}`);
+        const fullUrl = new URL(`${req.protocol}://${req.hostname}${req.originalUrl}`);
         const redirect = await sso.handleRedirect(fullUrl, makeCookies(req, res));
         switch (redirect.type) {
             case "redirect":

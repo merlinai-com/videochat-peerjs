@@ -17,7 +17,7 @@ function getElementById(id, cls) {
 }
 
 /** Interactive elements */
-export const elements = Object.freeze({
+export const elements = {
     // Connecting
     roomName: getElementById("room-name", HTMLInputElement),
     createRoom: getElementById("create-room", HTMLButtonElement),
@@ -34,7 +34,8 @@ export const elements = Object.freeze({
     saveRecord: getElementById("save-record", HTMLButtonElement),
     deleteRecord: getElementById("delete-record", HTMLButtonElement),
     uploadRecord: getElementById("upload-record", HTMLButtonElement),
-});
+    downloadRecord: getElementById("download-record", HTMLAnchorElement),
+};
 
 /** Get a URL for a roomID/roomName
  * @param {string} roomID
@@ -42,6 +43,7 @@ export const elements = Object.freeze({
 */
 export function getRoomURL(roomID, roomName) {
     const url = new URL(window.location.href);
+    url.searchParams.delete("roomNotFound");
     url.searchParams.set("name", roomName);
     url.searchParams.set("room", roomID);
     return url.href;

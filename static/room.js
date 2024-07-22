@@ -12,10 +12,9 @@ class RoomNotFound extends Error {
 
 /** @param {string} roomID  */
 async function joinRoom(roomID) {
-    const res = await fetch(`/room/info/${roomID}`);
+    const res = await fetch(`/room/${roomID}/info`);
     if (!res.ok) {
-        console.debug(res);
-        if (res.status === 404 && await res.text() === "Room not found") {
+        if (res.status === 404 && (await res.text()).includes("Room not found")) {
             throw new RoomNotFound(roomID);
         } else {
             throw new Error(`Unable to get room info: ${res.status} ${res.statusText}`);
@@ -49,7 +48,15 @@ export async function roomInit() {
         }
     });
     if (roomID) {
-        return await joinRoom(roomID);
+        try {
+            return await joinRoom(roomID);
+        } catch (e) {
+            if (e instanceof RoomNotFound) {
+                window.location.search = new URLSearchParams({ roomNotFound: "" }).toString();
+            } else {
+                throw e;
+            }
+        }
     } else {
         elements.createRoom.addEventListener('click', async () => {
             const roomName = elements.roomName.value;

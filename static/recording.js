@@ -10,7 +10,7 @@ import { elements, roomID } from "./utils.js";
  */
 export async function recordingInit(socketio, localStream, peerID) {
     const mediaMimeTypes = ["video/webm"];
-    const recorderMimeType = mediaMimeTypes.find(MediaRecorder.isTypeSupported);
+    let recorderMimeType = mediaMimeTypes.find(MediaRecorder.isTypeSupported);
     if (!recorderMimeType) {
         console.warn("No supported mime type");
     }
@@ -42,8 +42,8 @@ export async function recordingInit(socketio, localStream, peerID) {
         }
     });
 
-    request.addEventListener("error", (event) => {
-        console.error('Database error:', event.target.errorCode);
+    request.addEventListener("error", () => {
+        console.error('Database error:', request.error);
     });
 
     request.addEventListener("success", function () {
@@ -86,20 +86,48 @@ export async function recordingInit(socketio, localStream, peerID) {
             socketio.emit("/room/video", { roomID, peerID, message: "record/upload" });
     });
 
-    function startRecording(stream) {
+    /**
+     * Start recording
+     * @param {MediaStream} stream
+     */
+    async function startRecording(stream) {
         recordedChunks = [];
         mediaRecorder = new MediaRecorder(stream, { mimeType: recorderMimeType });
-        mediaRecorder.addEventListener("dataavailable", event => {
+        /** Interval to request data regularly */
+        const requestDataInterval = setInterval(() => mediaRecorder.requestData(), 1000);
+
+        /** @type {string} */
+        const uuid = await socketio.emitWithAck("/upload/start");
+        console.log(uuid);
+        let sendUploadStop = false;
+
+        // Set up media recorder callbacks
+        mediaRecorder.addEventListener("dataavailable", async event => {
             if (event.data.size > 0) {
-                recordedChunks.push(event.data);
+                const chunk = event.data;
+                recorderMimeType = chunk.type;
+                recordedChunks.push(chunk);
+                socketio.emit("/upload/chunk", await chunk.arrayBuffer());
+            }
+            if (sendUploadStop) {
+                socketio.emit("/upload/stop");
+                sendUploadStop = false;
             }
         });
         mediaRecorder.addEventListener("stop", () => {
             elements.startRecord.disabled = false;
             elements.stopRecord.disabled = true;
             elements.saveRecord.disabled = false;
+            if (roomID) {
+                elements.downloadRecord.classList.remove("disabled");
+                elements.downloadRecord.href = `/room/${roomID}/recordings`;
+            }
+            clearInterval(requestDataInterval);
+            sendUploadStop = true;
         });
         mediaRecorder.start();
+
+        // UI updates
         elements.startRecord.disabled = true;
         elements.stopRecord.disabled = false;
     }
@@ -114,15 +142,15 @@ export async function recordingInit(socketio, localStream, peerID) {
         const objectStore = transaction.objectStore('videos');
         const request = objectStore.add({ video: blob });
 
-        request.onsuccess = function (event) {
+        request.addEventListener("success", () => {
             console.log('Video recording saved to IndexedDB');
             elements.saveRecord.disabled = true;
             elements.deleteRecord.disabled = false;
-        };
+        });
 
-        request.onerror = function (event) {
-            console.error('Error saving recording:', event.target.errorCode);
-        };
+        request.addEventListener("error", () => {
+            console.error('Error saving recording:', request.error);
+        });
     }
 
     function deleteRecording() {
@@ -130,7 +158,7 @@ export async function recordingInit(socketio, localStream, peerID) {
         const objectStore = transaction.objectStore('videos');
         const request = objectStore.clear();
 
-        request.onsuccess = function (event) {
+        request.onsuccess = function () {
             alert('Recording deleted.');
             elements.deleteRecord.disabled = true;
 
@@ -141,8 +169,8 @@ export async function recordingInit(socketio, localStream, peerID) {
             }
         };
 
-        request.onerror = function (event) {
-            console.error('Error deleting recording:', event.target.errorCode);
+        request.onerror = function () {
+            console.error('Error deleting recording:', request.error);
         };
     }
 
@@ -151,14 +179,14 @@ export async function recordingInit(socketio, localStream, peerID) {
         const objectStore = transaction.objectStore('videos');
         const request = objectStore.getAll();
 
-        request.onsuccess = function (event) {
-            if (event.target.result.length > 0) {
+        request.onsuccess = function () {
+            if (request.result.length > 0) {
                 elements.deleteRecord.disabled = false;
             }
         };
 
-        request.onerror = function (event) {
-            console.error('Error loading recorded video:', event.target.errorCode);
+        request.onerror = function () {
+            console.error('Error loading recorded video:', request.error);
         };
     }
 
@@ -167,34 +195,37 @@ export async function recordingInit(socketio, localStream, peerID) {
         const objectStore = transaction.objectStore('videos');
         const request = objectStore.getAll();
 
-        request.addEventListener("success", async function (event) {
-            const videos = event.target.result;
+        request.addEventListener("success", async function () {
+            const videos = request.result;
             if (videos.length > 0) {
                 const mostRecentVideo = videos.at(-1).video;
-                const formData = new FormData();
-                formData.append('file', mostRecentVideo);
+                const uuid = await socketio.emitWithAck("/upload/start");
+                socketio.emit("/upload/chunk", mostRecentVideo);
+                socketio.emit("/upload/stop");
+                // const formData = new FormData();
+                // formData.append('file', mostRecentVideo);
 
-                try {
-                    const response = await fetch('/upload', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    if (response.ok) {
-                        console.log('Upload successful!');
-                    } else {
-                        console.error('Upload failed.');
-                        console.debug(response);
-                    }
-                } catch (error) {
-                    console.error('Error uploading the file:', error);
-                };
+                // try {
+                //     const response = await fetch('/upload', {
+                //         method: 'POST',
+                //         body: formData
+                //     });
+                //     if (response.ok) {
+                //         console.log('Upload successful!');
+                //     } else {
+                //         console.error('Upload failed.');
+                //         console.debug(response);
+                //     }
+                // } catch (error) {
+                //     console.error('Error uploading the file:', error);
+                // };
             } else {
                 console.log('No videos found in IndexedDB');
             }
         });
 
         request.addEventListener("error", function (event) {
-            console.error('Error retrieving videos:', event.target.errorCode);
+            console.error('Error retrieving videos:', request.error);
         });
     }
 }
