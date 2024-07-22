@@ -93,7 +93,7 @@ export async function peerInit(socketio) {
                 { urls: ['turn:videochat-dev.getzap.co:5349'], username: "dev", credential: "dev" },
             ]
         },
-        debug: 2,
+        debug: 3,
     }
 
     const peer = new Peer(peerOptions);
