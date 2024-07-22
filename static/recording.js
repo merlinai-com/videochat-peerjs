@@ -9,7 +9,7 @@ import { elements, roomID } from "./utils.js";
  * @param {string} peerID
  */
 export async function recordingInit(socketio, localStream, peerID) {
-    const mediaMimeTypes = ["video/webm"];
+    const mediaMimeTypes = ['video/webm;codecs="opus"', "video/webm"];
     let recorderMimeType = mediaMimeTypes.find(MediaRecorder.isTypeSupported);
     if (!recorderMimeType) {
         console.warn("No supported mime type");
