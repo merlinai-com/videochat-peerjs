@@ -24,8 +24,10 @@ export const elements = {
     createRoom: getElementById("create-room", HTMLButtonElement),
     roomUrlReadout: getElementById("room-url", HTMLElement),
     copyUrlButton: getElementById("copy-url", HTMLButtonElement),
+    connectButton: getElementById("connect", HTMLButtonElement),
 
     // Playback
+    videoDiv: getElementById("video", HTMLElement),
     localVideo: getElementById("local-video", HTMLVideoElement),
     remoteVideos: getElementById("remote-videos", HTMLElement),
 

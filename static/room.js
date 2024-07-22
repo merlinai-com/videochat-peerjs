@@ -49,7 +49,11 @@ export async function roomInit() {
     });
     if (roomID) {
         try {
-            return await joinRoom(roomID);
+            const { roomName, roomID: id } = await joinRoom(roomID);
+            elements.connectButton.classList.remove("hidden");
+            elements.connectButton.disabled = false;
+            elements.videoDiv.classList.remove("hidden");
+            return { roomName, roomID: id };
         } catch (e) {
             if (e instanceof RoomNotFound) {
                 window.location.search = new URLSearchParams({ roomNotFound: "" }).toString();

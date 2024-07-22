@@ -73,16 +73,13 @@ function connectToPeer(peer, connections, localStream, otherID) {
 
 /**
  * @param {import("socket.io").Socket} socketio
+ * @param {MediaStream} localStream
  * @returns {Promise<{
- *  localStream: MediaStream,
  *  peerHandlers: PeerHandlers,
  *  peerID: string,
  * }>}
  */
-export async function peerInit(socketio) {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: { echoCancellation: true } });
-    elements.localVideo.srcObject = stream;
-
+export async function peerInit(socketio, localStream) {
     /** @type {import("peerjs").PeerOptions} */
     const peerOptions = {
         host: window.location.hostname,
@@ -124,7 +121,7 @@ export async function peerInit(socketio) {
     });
 
     peer.on('call', call => {
-        call.answer(stream);
+        call.answer(localStream);
         handleCall(connections, call);
     });
 
@@ -133,18 +130,18 @@ export async function peerInit(socketio) {
         conn.on('data', data => {
             console.debug("data");
             if (data === 'request-stream') {
-                const call = peer.call(conn.peer, stream);
+                const call = peer.call(conn.peer, localStream);
                 handleCall(connections, call);
             }
         });
     });
 
-    const peerID = await peerReady;
+    console.log("before ready");
+    const { peerID } = await peerReady;
 
     return {
-        localStream: stream,
         peerHandlers: {
-            peerJoin: (otherID) => connectToPeer(peer, connections, stream, otherID),
+            peerJoin: (otherID) => connectToPeer(peer, connections, localStream, otherID),
             peerLeave: (otherID) => { delete connections[otherID] },
         },
         peerID,
