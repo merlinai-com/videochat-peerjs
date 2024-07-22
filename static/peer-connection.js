@@ -28,6 +28,8 @@ function removePeer(connections, otherID) {
  */
 function handleCall(connections, call) {
     call.on('stream', remoteStream => {
+        console.debug("stream");
+        remoteStream.addEventListener("addtrack", () => console.debug("addtrack"));
         if (!document.getElementById(call.peer)) {
             const video = document.createElement('video');
             video.id = call.peer;
@@ -58,7 +60,7 @@ function connectToPeer(peer, connections, localStream, otherID) {
         });
         conn.on('data', data => {
             if (data === 'request-stream') {
-                console.log("connectToPeer, reply to request-stream")
+                console.debug("connectToPeer, reply to request-stream")
                 const call = peer.call(otherID, localStream);
                 handleCall(connections, call);
             }
@@ -127,7 +129,9 @@ export async function peerInit(socketio) {
     });
 
     peer.on('connection', conn => {
+        console.debug("connection", { conn });
         conn.on('data', data => {
+            console.debug("data");
             if (data === 'request-stream') {
                 const call = peer.call(conn.peer, stream);
                 handleCall(connections, call);
