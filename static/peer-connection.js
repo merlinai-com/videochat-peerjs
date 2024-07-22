@@ -89,8 +89,8 @@ export async function peerInit(socketio) {
         secure: window.location.protocol === "https:",
         config: {
             iceServers: [
-                { urls: ['stun:videochat-dev.getzap.co'] },
-                { urls: ['turn:videochat-dev.getzap.co'], username: "dev", credential: "dev" },
+                { urls: ['stun:videochat-dev.getzap.co:5349'] },
+                { urls: ['turn:videochat-dev.getzap.co:5349'], username: "dev", credential: "dev" },
             ]
         },
         debug: 2,
