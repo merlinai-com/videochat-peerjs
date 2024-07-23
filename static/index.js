@@ -1,32 +1,12 @@
 // @ts-check
 
-import { peerInit } from "./peer-connection.js";
+// import { peerInit } from "./peer-connection.js";
 import { roomInit } from "./room.js";
 import { recordingInit } from "./recording.js";
 // @ts-ignore
 import { io } from "/socket.io/socket.io.esm.min.js";
-import { elements } from "./utils.js";
-
-/**
- * @param {{roomID: string} | null} roomInfo
- * @param {import("socket.io").Socket} socketio
- * @param {import("./peer-connection.js").PeerHandlers} peerHandlers
- */
-async function main(roomInfo, socketio, peerHandlers) {
-    socketio.on("/room/peer-join", ({ peerID }) => {
-        console.log("/room/peer-join");
-        peerHandlers.peerJoin(peerID);
-    });
-    socketio.on("/room/peer-leave", ({ peerID }) => {
-        console.log("/room/peer-leave");
-        peerHandlers.peerLeave(peerID);
-    });
-
-    if (roomInfo) {
-        const { roomID } = roomInfo;
-        socketio.emit("/room/join", { roomID });
-    }
-}
+import { elements, roomId } from "./utils.js";
+import { webrtcInit } from "./webrtc.js";
 
 async function loginInit() {
     const loginButton = document.getElementById("login-button");
@@ -57,9 +37,7 @@ async function mediaInit() {
 
 /** Initialisation after page load */
 async function init() {
-    console.log("init");
-
-    const roomInfo = await roomInit();
+    await roomInit();
     const { localStream } = await mediaInit();
 
     // Wait for user interaction
@@ -70,12 +48,15 @@ async function init() {
     /** @type {import("socket.io").Socket} */
     const socketio = io();
 
-    const { peerHandlers, peerID } = await peerInit(socketio, localStream);
-    await recordingInit(socketio, localStream, peerID);
+    webrtcInit(socketio, localStream);
+    socketio.emit("/room/join", { roomId });
+    await recordingInit(socketio, localStream);
 
     console.log("here ahfsd");
 
-    await main(roomInfo, socketio, peerHandlers);
+    socketio.on("/room/peer-join", (peer) => console.log("peer-join", peer));
+    socketio.on("/room/peer-leave", (peer) => console.log("peer-leave", peer));
+    // await main(roomInfo, socketio, peerHandlers);
     await loginInit();
 }
 

@@ -1,7 +1,7 @@
 // @ts-check
 
 /** The current room ID @type {string | null} */
-export const roomID = new URL(window.location.href).searchParams.get("room");
+export const roomId = new URL(window.location.href).searchParams.get("room");
 
 /**
  * @template T

@@ -7,11 +7,10 @@ import JSZip from "jszip";
 import * as fs from "node:fs/promises";
 import * as path from "path";
 import { dirname } from "path";
-import { ExpressPeerServer } from "peer";
 import { Socket as SocketIO, Server as SocketIOServer } from "socket.io";
 import { SSO } from "sso";
 import { fileURLToPath } from "url";
-import { getRedirectUrl, parseReadonlyCookies, ssoMiddleware } from "./sso.js";
+import { getRedirectUrl, ssoMiddleware } from "./sso.js";
 // import hbs from "hbs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -41,9 +40,18 @@ const errors = {
 }
 
 /**
- * @typedef {{ name: string, peers: Set<string>, recordings: Map<string, string> }} Room
+ * @typedef {{ name: string, peers: Set<PeerID>, recordings: Map<string, string> }} Room
  * @typedef {string} PeerID
  * @typedef {string} RoomID
+ * @typedef {{
+ *  locals?: import("./sso.js").Locals,
+ *  room?: Room,
+ *  socket: SocketIO,
+ *  upload?: {
+ *      uuid: string,
+ *      file: import("fs/promises").FileHandle,
+ *  }
+ * }} PeerInfo
  */
 
 const app = express();
@@ -58,15 +66,7 @@ if (trust_proxy) app.set("trust proxy", true);
 
 /**
  * Information about a client
- * @type {Map<PeerID, {
- *  locals?: import("./sso.js").Locals,
- *  room?: Room,
- *  socket?: SocketIO,
- *  upload?: {
- *      uuid: string,
- *      file: import("fs/promises").FileHandle,
- *  }
- * }>}
+ * @type {Map<PeerID, PeerInfo>}
  */
 const peerInfo = new Map();
 
@@ -167,105 +167,95 @@ socketIO.engine.use(cookieParser());
 socketIO.engine.use(ssoMiddleware(sso));
 
 socketIO.on("connect", async (socket) => {
-    /** @type {PeerID | undefined} */
-    let peerID;
-    socket.on("/register", (id) => {
-        if (typeof id !== "string") return;
-        peerID = id;
-        const info = peerInfo.get(peerID);
-        if (!info) return;
-        info.socket = socket;
+    const peerId = randomUUID();
+    /** @type {PeerInfo} */
+    const info = {
+        /** @type {import("./sso.js").Locals} */
         // @ts-ignore
-        info.locals = socket.request.locals;
+        locals: socket.request.locals,
+        socket,
+    };
+    peerInfo.set(peerId, info);
+
+    socket.on("disconnect", () => {
+        if (info.room) {
+            info.room.peers.delete(peerId);
+            for (const peer of info.room.peers) {
+                peerInfo.get(peer)?.socket.emit("/room/peer-leave", { peerID: peerId });
+            }
+        }
     });
 
-    socket.on("/room/video", ({ roomID, message }) => {
-        const room = roomByRoomID.get(roomID);
+    socket.on("/room/video", ({ message }) => {
+        const room = info.room;
         if (!room) return void socket.emit("error", errors.roomNotFound.message);
-        if (!peerID) return void socket.emit("error", errors.notRegistered);
 
         for (const peer of room.peers) {
-            if (peer !== peerID) {
+            if (peer !== peerId) {
                 const sock = peerInfo.get(peer)?.socket;
-                if (sock) sock.emit("/room/video", ({ sender: peerID, message }));
+                if (sock) sock.emit("/room/video", ({ sender: peerId, message }));
             }
         }
     });
 
-    socket.on("/room/join", ({ roomID }) => {
-        const room = roomByRoomID.get(roomID);
+    socket.on("/room/join", ({ roomId }) => {
+        const room = roomByRoomID.get(roomId);
         if (!room) return void socket.emit("error", errors.roomNotFound.message);
-        if (!peerID) return void socket.emit("error", errors.notRegistered);
         for (const otherID of room.peers) {
-            if (otherID !== peerID) {
-                peerInfo.get(otherID)?.socket?.emit("/room/peer-join", { peerID });
-                socket.emit("/room/peer-join", { peerID: otherID });
+            if (otherID !== peerId) {
+                peerInfo.get(otherID)?.socket.emit("/room/peer-join", { id: peerId, polite: true });
+                socket.emit("/room/peer-join", { id: otherID, polite: false });
             }
         }
-        room.peers.add(peerID);
-        const info = peerInfo.get(peerID);
+        room.peers.add(peerId);
+        const info = peerInfo.get(peerId);
         if (!info) return;
         info.room = room;
     });
 
     // Streaming upload handlers
     socket.on("/upload/start", async (callback) => {
-        if (!peerID) return;
-        const info = peerInfo.get(peerID);
-        if (!info) return;
-        const uuid = randomUUID();
-        const file = await fs.open(`${uploadDirectory}/${uuid}.webm`, "w", 0o664);
+        const uploadId = randomUUID();
+        const file = await fs.open(`${uploadDirectory}/${uploadId}.webm`, "w", 0o664);
         info.upload = {
-            uuid,
+            uuid: uploadId,
             file,
         };
-        if (info.room) info.room.recordings.set(uuid, info.locals?.user?.name ?? "Unknown");
-        callback(uuid);
+        if (info.room) info.room.recordings.set(uploadId, info.locals?.user?.name ?? "Unknown");
+        callback(uploadId);
     });
 
     socket.on("/upload/chunk", async (chunk) => {
-        if (!peerID) return;
-        const info = peerInfo.get(peerID);
-        if (!info || !info.upload) return;
+        if (!info.upload) return;
         await info.upload.file.write(chunk);
     });
 
     socket.on("/upload/stop", async () => {
-        if (!peerID) return;
-        const info = peerInfo.get(peerID);
-        if (!info || !info.upload) return;
-        const { file }  = info.upload
+        if (!info.upload) return;
+        const { file } = info.upload
         info.upload = undefined;
         await file.close();
     });
-});
 
-// Start peer.js server
-const peerServer = ExpressPeerServer(server, {
-    path: "/",
-});
-app.use("/peerjs", peerServer);
-
-peerServer.on("connection", (client) => {
-    const peerID = client.getId();
-    peerInfo.set(peerID, {});
-});
-
-// Handle client disconnects:
-// - Remove from current room, and notify other clients in the room
-// - clean up upload files
-peerServer.on("disconnect", async (client) => {
-    const peerID = client.getId();
-    const info = peerInfo.get(peerID);
-    if (info && info.room) {
-        info.room.peers.delete(peerID);
-        for (const otherID of info.room.peers) {
-            peerInfo.get(otherID)?.socket?.emit("/room/peer-leave", { peerID });
+    // Signalling
+    socket.on("/signal/desc", ({ id, desc }) => {
+        const peer = peerInfo.get(id);
+        if (!peer) {
+            socket.emit("/signal/error", { status: 404, message: "Peer not found" });
+            return;
         }
-    }
-    if (info && info.upload) {
-        console.warn(`/upload/stop event not sent by ${peerID}`);
-        await info.upload.file.close()
-    }
-    peerInfo.delete(peerID);
+
+        peer.socket.emit("/signal/desc", { id: peerId, desc });
+    });
+
+    socket.on("/signal/candidate", ({ id, candidate }) => {
+        const peer = peerInfo.get(id);
+        if (!peer) {
+            socket.emit("/signal/error", { status: 404, message: "Peer not found" });
+            return;
+        }
+
+        peer.socket.emit("/signal/candidate", { id: peerId, candidate });
+    });
 });
+

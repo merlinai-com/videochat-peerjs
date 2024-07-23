@@ -1,6 +1,7 @@
+// @ts-check
 // based on peerjs-frontend/js/index-rooms.js  jd & chatgpt4o  7-8 july 2024
 
-import { roomID, elements, getRoomURL } from "./utils.js";
+import { roomId, elements, getRoomURL } from "./utils.js";
 
 class RoomNotFound extends Error {
     /** @param {string} roomID  */
@@ -10,34 +11,33 @@ class RoomNotFound extends Error {
     }
 }
 
-/** @param {string} roomID  */
-async function joinRoom(roomID) {
-    const res = await fetch(`/room/${roomID}/info`);
+/** @param {string} roomId  */
+async function joinRoom(roomId) {
+    const res = await fetch(`/room/${roomId}/info`);
     if (!res.ok) {
         if (res.status === 404 && (await res.text()).includes("Room not found")) {
-            throw new RoomNotFound(roomID);
+            throw new RoomNotFound(roomId);
         } else {
             throw new Error(`Unable to get room info: ${res.status} ${res.statusText}`);
         }
     } else {
         const { name: roomName } = await res.json();
 
-        const roomURL = getRoomURL(roomID, roomName);
-
         // Set room name in the UI
+
+        const roomURL = getRoomURL(roomId, roomName);
+
         elements.roomName.value = roomName;
         elements.roomName.readOnly = true;
         elements.createRoom.classList.add("hidden");
         elements.roomUrlReadout.innerText = roomURL;
         elements.copyUrlButton.classList.remove("hidden");
 
-        return { roomName, roomID, roomURL };
+        return { roomId, roomURL };
     }
 }
 
-/** Initialise UI related to the current room
- * @returns { Promise<{ roomName: string, roomID: string } | null>}
- */
+/** Initial room related UI */
 export async function roomInit() {
     elements.copyUrlButton.addEventListener('click', async () => {
         try {
@@ -47,13 +47,12 @@ export async function roomInit() {
             console.error('Failed to copy room URL', err);
         }
     });
-    if (roomID) {
+    if (roomId) {
         try {
-            const { roomName, roomID: id } = await joinRoom(roomID);
+            await joinRoom(roomId);
             elements.connectButton.classList.remove("hidden");
             elements.connectButton.disabled = false;
             elements.videoDiv.classList.remove("hidden");
-            return { roomName, roomID: id };
         } catch (e) {
             if (e instanceof RoomNotFound) {
                 window.location.search = new URLSearchParams({ roomNotFound: "" }).toString();
@@ -71,16 +70,14 @@ export async function roomInit() {
                 console.debug(res);
                 window.alert("Error creating room");
             }
-            /** @type {{ name: string }} */
-            const { id: roomID } = await res.json();
+            /** @type {{ id: string }} */
+            const { id: roomId } = await res.json();
 
-            const { roomURL } = await joinRoom(roomID);
+            const { roomURL } = await joinRoom(roomId);
 
             // Update URL to include roomID
             // TODO: use history.pushState to avoid page reload
-            window.location = roomURL;
+            window.location.href = roomURL;
         });
-
-        return null;
     }
 }

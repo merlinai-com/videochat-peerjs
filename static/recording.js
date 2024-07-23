@@ -1,14 +1,13 @@
 // @ts-check
 // peerjs-frontend/js/video-management.js   jd & chatgpt4o   8 july 2024
 
-import { elements, roomID } from "./utils.js";
+import { elements, roomId } from "./utils.js";
 
 /**
  * @param {import("socket.io").Socket} socketio
  * @param {MediaStream} localStream
- * @param {string} peerID
  */
-export async function recordingInit(socketio, localStream, peerID) {
+export async function recordingInit(socketio, localStream) {
     const mediaMimeTypes = ['video/webm;codecs="opus"', "video/webm"];
     let recorderMimeType = mediaMimeTypes.find(MediaRecorder.isTypeSupported);
     if (!recorderMimeType) {
@@ -60,20 +59,17 @@ export async function recordingInit(socketio, localStream, peerID) {
 
     elements.startRecord.addEventListener('click', () => {
         startRecording(localStream);
-        if (roomID && peerID)
-            socketio.emit("/room/video", { roomID, peerID, message: "record/start" });
+        socketio.emit("/room/video", { message: "record/start" });
     });
 
     elements.stopRecord.addEventListener('click', () => {
         stopRecording();
-        if (roomID && peerID)
-            socketio.emit("/room/video", { roomID, peerID, message: "record/stop" });
+        socketio.emit("/room/video", { message: "record/stop" });
     });
 
     elements.saveRecord.addEventListener('click', () => {
         saveRecording();
-        if (roomID && peerID)
-            socketio.emit("/room/video", { roomID, peerID, message: "record/save" });
+        socketio.emit("/room/video", { message: "record/save" });
     });
 
     elements.deleteRecord.addEventListener('click', () => {
@@ -82,8 +78,7 @@ export async function recordingInit(socketio, localStream, peerID) {
 
     elements.uploadRecord.addEventListener('click', () => {
         uploadRecording();
-        if (roomID && peerID)
-            socketio.emit("/room/video", { roomID, peerID, message: "record/upload" });
+        socketio.emit("/room/video", { message: "record/upload" });
     });
 
     /**
@@ -118,9 +113,9 @@ export async function recordingInit(socketio, localStream, peerID) {
             elements.startRecord.disabled = false;
             elements.stopRecord.disabled = true;
             elements.saveRecord.disabled = false;
-            if (roomID) {
+            if (roomId) {
                 elements.downloadRecord.classList.remove("disabled");
-                elements.downloadRecord.href = `/room/${roomID}/recordings`;
+                elements.downloadRecord.href = `/room/${roomId}/recordings`;
             }
             clearInterval(requestDataInterval);
             sendUploadStop = true;
