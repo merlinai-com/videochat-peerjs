@@ -35,6 +35,7 @@ let sortedCodecs = getSortedCodecs();
  *  polite: boolean
  *  makingOffer: boolean,
  *  ignoreOffer: boolean,
+ *  settingRemoteAnswer: boolean,
  * }} PeerState
  */
 
@@ -70,7 +71,10 @@ function ensureVideoOutput(id, stream) {
  */
 export async function connectToPeer(socketio, localStream, peerConnections, id, polite) {
     const pc = (peerConnections[id] ??=
-        { conn: new RTCPeerConnection(rtcConfig), polite, makingOffer: false, ignoreOffer: false });
+    {
+        conn: new RTCPeerConnection(rtcConfig), polite,
+        makingOffer: false, ignoreOffer: false, settingRemoteAnswer: false
+    });
 
     for (const track of localStream.getTracks()) {
         pc.conn.addTrack(track, localStream);
@@ -123,11 +127,15 @@ export function webrtcInit(socketio, localStream) {
                 return;
             }
 
-            const offerCollision = desc.type === "offer" && (pc.makingOffer || pc.conn.signalingState !== "stable");
+            const readyForOffer = !pc.makingOffer && (pc.conn.signalingState === "stable" || pc.settingRemoteAnswer);
+            const offerCollision = desc.type === "offer" && !readyForOffer;
+
             pc.ignoreOffer = offerCollision && !pc.polite;
             if (pc.ignoreOffer) return;
 
+            pc.settingRemoteAnswer = desc.type === "answer";
             await pc.conn.setRemoteDescription(desc);
+            pc.settingRemoteAnswer = false;
             if (desc.type === "offer") {
                 await pc.conn.setLocalDescription();
                 socketio.emit("/signal/desc", { id, desc: pc.conn.localDescription });
