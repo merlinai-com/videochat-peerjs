@@ -70,6 +70,30 @@ function connectToPeer(peer, connections, localStream, otherID) {
     return connections[otherID];
 }
 
+/**
+ * @param {RTCRtpCodecCapability[]} codecs
+ * @param {string[]} preferredOrder
+ * @returns {RTCRtpCodecCapability[]}
+ */
+function sortByMimeTypes(codecs, preferredOrder) {
+    return codecs.sort((a, b) => {
+        const indexA = preferredOrder.indexOf(a.mimeType);
+        const indexB = preferredOrder.indexOf(b.mimeType);
+        const orderA = indexA >= 0 ? indexA : Number.MAX_VALUE;
+        const orderB = indexB >= 0 ? indexB : Number.MAX_VALUE;
+        return orderA - orderB;
+    });
+}
+/**
+ * Get supported video codecs in order of preference
+ * @returns {RTCRtpCodecCapability[]}
+ */
+function getSortedCodecs() {
+    const supported = RTCRtpReceiver.getCapabilities("video")?.codecs;
+    if (!supported) throw new Error("Unable to get supported codecs");
+    const preferredCodecs = ["video/VP9", "video/VP8", "video/H264"];
+    return sortByMimeTypes(supported, preferredCodecs);
+}
 
 /**
  * @param {import("socket.io").Socket} socketio
@@ -80,6 +104,8 @@ function connectToPeer(peer, connections, localStream, otherID) {
  * }>}
  */
 export async function peerInit(socketio, localStream) {
+    const sortedCodecs = getSortedCodecs();
+
     /** @type {import("peerjs").PeerOptions} */
     const peerOptions = {
         host: window.location.hostname,
@@ -126,6 +152,7 @@ export async function peerInit(socketio, localStream) {
     });
 
     peer.on('connection', conn => {
+        conn.peerConnection.getTransceivers().forEach(t => t.setCodecPreferences(sortedCodecs));
         console.debug("connection", { conn });
         conn.on('data', data => {
             console.debug("data");
