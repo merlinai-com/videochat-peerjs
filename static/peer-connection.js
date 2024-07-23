@@ -106,6 +106,8 @@ function getSortedCodecs() {
 export async function peerInit(socketio, localStream) {
     const sortedCodecs = getSortedCodecs();
 
+    const turnServer = { urls: ["turn:darley.dev:3478"], username: "test", credential: "test" };
+
     /** @type {import("peerjs").PeerOptions} */
     const peerOptions = {
         host: window.location.hostname,
@@ -115,7 +117,8 @@ export async function peerInit(socketio, localStream) {
         config: {
             iceServers: [
                 { urls: ['stun:videochat-dev.getzap.co:5349'] },
-                { urls: ['turn:openrelay.metered.ca:80'], username: "openrelayproject", credential: "openrelayproject" },
+                turnServer,
+                // { urls: ['turn:openrelay.metered.ca:80'], username: "openrelayproject", credential: "openrelayproject" },
             ]
         },
         debug: 3,
@@ -123,7 +126,7 @@ export async function peerInit(socketio, localStream) {
 
     const peer = new Peer(peerOptions);
 
-    /** All connections to other peers @type {Record<string, any>} */
+    /** All connections to other peers @type {Connections} */
     const connections = {};
 
     const peerReady = new Promise((resolve) => {
@@ -163,7 +166,6 @@ export async function peerInit(socketio, localStream) {
         });
     });
 
-    console.log("before ready");
     const { peerID } = await peerReady;
 
     return {
