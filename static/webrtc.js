@@ -1,5 +1,6 @@
 // @ts-check
 import { elements } from "./utils.js";
+import iceServers from "/api/ice-servers.js";
 
 /**
  * Get supported video codecs in order of preference
@@ -40,12 +41,7 @@ let sortedCodecs = getSortedCodecs();
  */
 
 /** @type {RTCConfiguration} */
-const rtcConfig = {
-    iceServers: [
-        { urls: "stun:darley.dev:3478" },
-        { urls: "turn:darley.dev:3478", username: "test", credential: "test" },
-    ]
-};
+const rtcConfig = { iceServers };
 
 /**
  * Ensure a MediaStream is being output

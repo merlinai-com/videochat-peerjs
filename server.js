@@ -39,6 +39,12 @@ const errors = {
     notRegistered: { status: "error", message: "Not registered" },
 }
 
+/** @type {RTCIceServer[]} */
+const defaultIceServer = [
+    { urls: "stun:darley.dev:3478" },
+    { urls: "turn:darley.dev:3478", username: "test", credential: "test" },
+];
+
 /**
  * @typedef {{ name: string, peers: Set<PeerID>, recordings: Map<string, string> }} Room
  * @typedef {string} PeerID
@@ -155,7 +161,18 @@ app.get("/room/:roomID/recordings", (req, res) => {
             level: compressionLevel,
         }
     }).pipe(res);
-})
+});
+
+app.get("/api/ice-servers.js", async (_req, res) => {
+    let json;
+    try {
+        json = (await fs.readFile("./iceServers.json", { encoding: "utf8" })).trim();
+    } catch {
+        json = JSON.stringify(defaultIceServer);
+    }
+    const file = `export default ${json};`;
+    res.type("text/javascript").send(file);
+});
 
 // Start the express server
 const server = app.listen(port, host, () => console.log(`Listening on ${host}:${port}`));
