@@ -181,7 +181,7 @@ socketIO.on("connect", async (socket) => {
         if (info.room) {
             info.room.peers.delete(peerId);
             for (const peer of info.room.peers) {
-                peerInfo.get(peer)?.socket.emit("/room/peer-leave", { peerID: peerId });
+                peerInfo.get(peer)?.socket.emit("/room/peer-leave", { id: peerId });
             }
         }
     });

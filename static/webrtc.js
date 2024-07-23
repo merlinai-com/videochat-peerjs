@@ -1,6 +1,33 @@
 // @ts-check
-
 import { elements } from "./utils.js";
+
+/**
+ * Get supported video codecs in order of preference
+ * @returns {RTCRtpCodecCapability[]}
+ */
+function getSortedCodecs() {
+    /**
+    * @param {RTCRtpCodecCapability[]} codecs
+    * @param {string[]} preferredOrder
+    * @returns {RTCRtpCodecCapability[]}
+    */
+    function sortByMimeTypes(codecs, preferredOrder) {
+        return codecs.sort((a, b) => {
+            const indexA = preferredOrder.indexOf(a.mimeType);
+            const indexB = preferredOrder.indexOf(b.mimeType);
+            const orderA = indexA >= 0 ? indexA : Number.MAX_VALUE;
+            const orderB = indexB >= 0 ? indexB : Number.MAX_VALUE;
+            return orderA - orderB;
+        });
+    }
+
+    const supported = RTCRtpReceiver.getCapabilities("video")?.codecs;
+    if (!supported) throw new Error("Unable to get supported codecs");
+    const preferredCodecs = ["video/VP9", "video/VP8", "video/H264"];
+    return sortByMimeTypes(supported, preferredCodecs);
+}
+
+let sortedCodecs = getSortedCodecs();
 
 /**
  * @typedef {{
@@ -20,10 +47,11 @@ const rtcConfig = {
 };
 
 /**
+ * Ensure a MediaStream is being output
  * @param {string} id
  * @param {MediaStream} stream
  */
-function getOrCreateVideo(id, stream) {
+function ensureVideoOutput(id, stream) {
     if (!document.getElementById(id)) {
         const video = document.createElement("video");
         video.id = id;
@@ -48,10 +76,16 @@ export async function connectToPeer(socketio, localStream, peerConnections, id, 
         pc.conn.addTrack(track, localStream);
     }
 
+    // try {
+    //     pc.conn.getTransceivers().forEach(t => t.setCodecPreferences(sortedCodecs))
+    // } catch (err) {
+    //     console.error("While setting codec preference:", err);
+    // }
+
     pc.conn.addEventListener("track", ({ track, streams }) => {
         console.log("track", { track, streams });
         track.addEventListener("unmute", () => {
-            getOrCreateVideo(id, streams[0]);
+            ensureVideoOutput(id, streams[0]);
         });
     });
 
@@ -68,6 +102,7 @@ export async function connectToPeer(socketio, localStream, peerConnections, id, 
     });
 
     pc.conn.addEventListener("icecandidate", ({ candidate }) => {
+        console.debug("icecandidate");
         socketio.emit("/signal/candidate", { id, candidate });
     });
 }
@@ -115,9 +150,15 @@ export function webrtcInit(socketio, localStream) {
     });
 
     socketio.on("/room/peer-leave", ({ id }) => {
-        peerConnections[id]?.conn.close();
-        delete peerConnections[id];
-    })
+        try {
+            peerConnections[id]?.conn.close();
+        } catch (err) {
+            console.error("While closing peer connection:", err);
+        } finally {
+            document.getElementById(id)?.remove();
+            delete peerConnections[id];
+        }
+    });
 
     socketio.on("/signal/error", (error) => console.error(error));
 }
