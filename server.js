@@ -37,7 +37,7 @@ const httpsKeyFile = process.env.HTTPS_KEY_FILE;
 // Warn if only one of cert file and cert key are set
 if (!!httpsCertFile != !!httpsKeyFile) {
     console.error(
-        "Only one of TLS_CERT_FILE and TLS_CERT_KEY are set. Both are required to use https"
+        "Only one of HTTPS_CERT_FILE and HTTPS_CERT_KEY are set. Both are required to use https"
     );
 }
 
