@@ -69,7 +69,7 @@ export function ssoMiddleware(sso) {
 
         if (canRedirect) {
             const fullUrl = new URL(
-                `${req.protocol}://${req.hostname}${req.originalUrl}`
+                `${req.protocol}://${req.get("host")}${req.originalUrl}`
             );
             const redirect = await sso.handleRedirect(
                 fullUrl,
