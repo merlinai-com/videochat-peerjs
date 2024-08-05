@@ -17,7 +17,7 @@ function makeCookies(req, res) {
         set(cookie) {
             res.cookie(cookie.name, cookie.value, cookie.attributes);
         },
-    }
+    };
 }
 
 /**
@@ -28,7 +28,7 @@ function makeCookies(req, res) {
 export function parseReadonlyCookies(rawCookies) {
     const cookies = {};
     if (rawCookies) {
-        rawCookies.split("; ").forEach(c => {
+        rawCookies.split("; ").forEach((c) => {
             const match = /^(?<name>[^=]*)=(?<value>.*)$/.exec(c);
             if (match && match.groups) {
                 cookies[match.groups.name] = match.groups.value;
@@ -44,7 +44,7 @@ export function parseReadonlyCookies(rawCookies) {
         set(cookie) {
             // do nothing
         },
-    }
+    };
 }
 
 /**
@@ -61,15 +61,28 @@ export function getRedirectUrl(req, path) {
  */
 export function ssoMiddleware(sso) {
     return async (req, res, next) => {
-        const fullUrl = new URL(`${req.protocol}://${req.hostname}${req.originalUrl}`);
-        const redirect = await sso.handleRedirect(fullUrl, makeCookies(req, res));
-        switch (redirect.type) {
-            case "redirect":
-                return res.redirect(redirect.status, redirect.url.href);
-            case "error":
-                return res.status(redirect.status).send(redirect.message);
-            case "ok":
-                break;
+        let canRedirect = true;
+        canRedirect &&= req.method === "GET";
+        canRedirect &&=
+            !!req.path &&
+            !(req.path.endsWith(".js") || req.path.endsWith(".css"));
+
+        if (canRedirect) {
+            const fullUrl = new URL(
+                `${req.protocol}://${req.hostname}${req.originalUrl}`
+            );
+            const redirect = await sso.handleRedirect(
+                fullUrl,
+                makeCookies(req, res)
+            );
+            switch (redirect.type) {
+                case "redirect":
+                    return res.redirect(redirect.status, redirect.url.href);
+                case "error":
+                    return res.status(redirect.status).send(redirect.message);
+                case "ok":
+                    break;
+            }
         }
 
         const validate = await sso.validateSession(makeCookies(req, res));
@@ -86,5 +99,5 @@ export function ssoMiddleware(sso) {
         req.locals.user = validate.value.user;
         req.locals.session = validate.value.session;
         next();
-    }
+    };
 }

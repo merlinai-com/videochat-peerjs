@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-<!-- peerjs-frontend/index.html  jd & chatgpt4o  6-8 july 2024 -->
 
 <html lang="en">
 
@@ -8,12 +7,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PeerJS Video Chat</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="./style.css" />
-    <script type="module" defer src="./index.js"></script>
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" defer src="/index.js"></script>
 </head>
 
 <body class="flex-col gap-1">
-    <h1>PeerJS Video Chat</h1>
+    <nav>
+        <a href="/">Zap</a>
+    </nav>
+
+    {{!-- SSO information --}}
     {{#if user}}
     <div>
         Logged in as {{user.name}} ({{user.email}})
@@ -26,26 +29,14 @@
         </button>
     </div>
     {{/if}}
+
+    {{!-- Creating a room --}}
     <div>
         <form id="room-form">
-            <input type="text" id="room-name" placeholder="Enter room name" required />
+            <label for="room-name">Room:</label>
+            <input id="room-name" placeholder="Enter room name" required />
             <button type="submit" id="create-room">Create Room</button>
         </form>
-        <p>Room URL: <span id="room-url"></span></p>
-        <button id="copy-url" class="hidden">Copy URL</button>
-    </div>
-    <button class="hidden" id="connect" disabled>Connect to call</button>
-    <div id="video" class="hidden">
-        <video id="local-video" autoplay muted></video>
-        <div id="remote-videos"></div>
-        <button id="start-record">Start Recording</button>
-        <button id="stop-record" disabled>Stop Recording</button>
-        <button id="save-record" disabled>Save Recording</button>
-        <button id="delete-record" disabled>Delete Recording</button>
-        <button id="upload-record" disabled>Save to Server</button>
-        <a class="button disabled" id="download-record" download="recording.webm">
-            Download Recording
-        </a>
     </div>
 </body>
 

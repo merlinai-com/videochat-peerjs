@@ -27,7 +27,9 @@ button {
     border-radius: 3px;
     background-color: #e9e9ed;
     font-size: medium;
-    padding: 0.1rem;
+    padding: 0 0.2rem;
+    width: max-content;
+    text-decoration: none;
 }
 
 .button.disabled,

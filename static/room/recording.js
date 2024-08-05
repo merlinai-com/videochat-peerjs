@@ -1,12 +1,11 @@
 // @ts-check
-// peerjs-frontend/js/video-management.js   jd & chatgpt4o   8 july 2024
 
 import { elements, roomId } from "./utils.js";
 
 /**
  * @param {import("socket.io").Socket} socketio
  * @param {MediaStream} localStream
- * @param {{connected: boolean}} state
+ * @param {{connected: boolean, recording: boolean}} state
  * @returns {{disconnectHandler: () => void}}
  */
 export function recordingInit(socketio, localStream, state) {
@@ -86,7 +85,11 @@ export function recordingInit(socketio, localStream, state) {
         socketio.emit("/room/video", { message: "record/upload" });
     });
 
-    return { disconnectHandler: () => stopRecording() };
+    return {
+        disconnectHandler: () => {
+            if (state.recording) stopRecording();
+        },
+    };
 
     // =================
     // Handler functions
@@ -102,8 +105,10 @@ export function recordingInit(socketio, localStream, state) {
             mimeType: recorderMimeType,
         });
 
-        /** @type {string} */
-        const uuid = await socketio.emitWithAck("/upload/start");
+        /** @type {string | undefined} */
+        const uuid = await socketio.emitWithAck("/upload/start", {
+            mimeType: recorderMimeType,
+        });
         console.log(`Started recording ${uuid}`);
         /** true after the mediaRecorder stop event has been sent, but before /upload/stop has been sent */
         let sendUploadStop = false;
@@ -136,10 +141,13 @@ export function recordingInit(socketio, localStream, state) {
         // UI updates
         elements.startRecord.disabled = true;
         elements.stopRecord.disabled = false;
+
+        state.recording = true;
     }
 
     function stopRecording() {
         mediaRecorder.stop();
+        state.recording = false;
     }
 
     function saveRecording() {
@@ -216,7 +224,7 @@ export function recordingInit(socketio, localStream, state) {
             }
         });
 
-        request.addEventListener("error", function (event) {
+        request.addEventListener("error", function () {
             console.error("Error retrieving videos:", request.error);
         });
     }

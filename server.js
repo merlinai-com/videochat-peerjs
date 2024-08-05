@@ -3,6 +3,9 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import { randomUUID } from "crypto";
 import express from "express";
+import { readFileSync } from "fs";
+import * as http from "http";
+import * as https from "https";
 import JSZip from "jszip";
 import * as fs from "node:fs/promises";
 import * as path from "path";
@@ -11,9 +14,6 @@ import { Socket as SocketIO, Server as SocketIOServer } from "socket.io";
 import { SSO } from "sso";
 import { fileURLToPath } from "url";
 import { getRedirectUrl, ssoMiddleware } from "./sso.js";
-import * as https from "https";
-import * as http from "http";
-import { readFileSync } from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -45,6 +45,7 @@ if (!!httpsCertFile != !!httpsKeyFile) {
 const logRequests = !!process.env.LOG_REQUESTS;
 
 // Some constants
+
 /**
  * The compression level to use when zip compressing uploaded files.
  * Between 1 (best speed) and 9 (best compression)
@@ -52,10 +53,14 @@ const logRequests = !!process.env.LOG_REQUESTS;
  */
 const compressionLevel = 6;
 
+// /** The timeout in ms before a room is destroyed */
+// const roomTimeout = 60 * 60 * 1000; // 1 hour
+
 /** Error messages */
 const errors = {
     roomNotFound: { status: "error", message: "Room not found" },
     notRegistered: { status: "error", message: "Not registered" },
+    peerNotFound: { status: "error", message: "Peer not found" },
 };
 
 /** @type {RTCIceServer[]} */
@@ -65,20 +70,23 @@ const defaultIceServer = [
 ];
 
 /**
- * @typedef {{ name: string, peers: Set<PeerInfo>, recordings: Map<string, string> }} Room
+ * @typedef {import("crypto").UUID} UUID
+ * @typedef {{ name: string, peers: Set<PeerInfo>, recordings: RecordingInfo[] }} Room
  * @typedef {string} PeerId
  * @typedef {string} RoomId
  * @typedef {{
  *  id: PeerId,
  *  locals?: import("./sso.js").Locals,
+ *  name?: string,
  *  room?: Room,
  *  socket: SocketIO,
  *  upload?: {
- *      uuid: string,
+ *      id: UUID,
  *      file: import("fs/promises").FileHandle,
  *  }
  *  connected: boolean,
  * }} PeerInfo
+ * @typedef {{name: string, timestamp: Date, id: UUID, extension: string}} RecordingInfo
  */
 
 const app = express();
@@ -96,7 +104,7 @@ if (trust_proxy) app.set("trust proxy", true);
 // Log all headers
 if (logRequests) {
     console.warn("LOG_REQUESTS is set - do not use this in production");
-    app.use((req, res, next) => {
+    app.use((req, _res, next) => {
         console.group(`Request: ${req.path}`);
         console.debug(req.headers);
         console.debug({ ip: req.ip });
@@ -150,6 +158,21 @@ app.get("/", (req, res) => {
     });
 });
 
+app.get("/room", (req, res) => {
+    /** @type {{user: import("sso").User, session: import("sso").Session}} */
+    // @ts-ignore
+    const { user, session } = req.locals;
+    res.render("room.hbs", {
+        cache: false,
+        user,
+        session,
+        loginUrl: sso.loginURL(getRedirectUrl(req, "/auth/complete-login"))
+            .href,
+        logoutUrl: sso.logoutURL(getRedirectUrl(req, "/auth/complete-login"))
+            .href,
+    });
+});
+
 app.post("/room/create", (req, res) => {
     const { name } = req.query;
     if (typeof name !== "string")
@@ -162,7 +185,7 @@ app.post("/room/create", (req, res) => {
     roomByRoomID.set(roomID, {
         name,
         peers: new Set(),
-        recordings: new Map(),
+        recordings: [],
     });
     res.json({ id: roomID });
 });
@@ -173,6 +196,7 @@ app.get("/room/:roomID/info", (req, res) => {
     if (!room) return res.status(404).send(errors.roomNotFound);
     res.json({
         name: room.name,
+        hasRecordings: room.recordings.length > 0,
     });
 });
 
@@ -182,28 +206,14 @@ app.get("/room/:roomID/recordings", (req, res) => {
     if (!room) return res.status(404).send(errors.roomNotFound);
     const zip = new JSZip();
 
-    /** @type {Record<string, string[]>} */
-    const byUser = {};
-    for (const [recording, name] of room.recordings.entries()) {
-        byUser[name] ??= [];
-        byUser[name].push(recording);
-    }
-    for (const [name, recordings] of Object.entries(byUser)) {
-        if (recordings.length === 1) {
-            zip.file(
-                `${name}.webm`,
-                fs.readFile(`${uploadDirectory}/${recordings[0]}.webm`)
-            );
-        } else {
-            recordings.forEach((recording, index) => {
-                zip.file(
-                    `${name}-${index}.webm`,
-                    fs.readFile(`${uploadDirectory}/${recording}.webm`),
-                    { binary: true }
-                );
-            });
-        }
-    }
+    room.recordings.forEach((recording, index) => {
+        zip.file(
+            `${index}-${recording.name}-${recording.timestamp
+                .toISOString()
+                .replace(":", ".")}.${recording.extension}`,
+            fs.readFile(`${uploadDirectory}/${recording.id}.webm`)
+        );
+    });
     res.header("Content-Type", "application/zip");
     res.header(
         "Content-Disposition",
@@ -292,8 +302,8 @@ socketIO.on("connect", async (socket) => {
         }
     });
 
-    socket.on("/room/join", ({ roomId }) => {
-        const room = roomByRoomID.get(roomId);
+    socket.on("/room/join", ({ id, name }) => {
+        const room = roomByRoomID.get(id);
         if (!room)
             return void socket.emit("error", errors.roomNotFound.message);
         for (const other of room.peers) {
@@ -308,6 +318,7 @@ socketIO.on("connect", async (socket) => {
         room.peers.add(info);
         info.room = room;
         info.connected = true;
+        info.name ??= name;
     });
 
     socket.on("/room/leave", () => {
@@ -316,22 +327,31 @@ socketIO.on("connect", async (socket) => {
     });
 
     // Streaming upload handlers
-    socket.on("/upload/start", async (callback) => {
+    socket.on("/upload/start", async ({ mimeType }, callback) => {
+        let extension = "hex";
+        if (typeof mimeType === "string") {
+            if (mimeType.startsWith("video/webm")) extension = "webm";
+            else if (mimeType.startsWith("video/ogg")) extension = "ogg";
+            else if (mimeType.startsWith("video/mp4")) extension = "mp4";
+        }
+
         const uploadId = randomUUID();
         const file = await fs.open(
-            `${uploadDirectory}/${uploadId}.webm`,
+            `${uploadDirectory}/${uploadId}.${extension}`,
             "w",
             0o664
         );
         info.upload = {
-            uuid: uploadId,
+            id: uploadId,
             file,
         };
         if (info.room)
-            info.room.recordings.set(
-                uploadId,
-                info.locals?.user?.name ?? "Unknown"
-            );
+            info.room.recordings.push({
+                id: uploadId,
+                name: info.locals?.user?.name ?? info.name ?? "Uknown",
+                extension,
+                timestamp: new Date(),
+            });
         callback(uploadId);
     });
 
@@ -347,30 +367,17 @@ socketIO.on("connect", async (socket) => {
         await file.close();
     });
 
-    // Signalling
-    socket.on("/signal/desc", ({ id, desc }) => {
+    socket.on("/signal", ({ id, desc, candidate }) => {
         const peer = peerInfo.get(id);
-        if (!peer || !peer.connected) {
-            socket.emit("/signal/error", {
-                status: 404,
-                message: "Peer not found",
-            });
+
+        /** Check the peer should accept the signal */
+        const sameRoom = !!peer && !!peer.room && peer?.room == info.room;
+        const acceptsSignal = !!peer && peer.connected && sameRoom;
+        if (!acceptsSignal) {
+            socket.emit("/signal/error", errors.peerNotFound);
             return;
         }
 
-        peer.socket.emit("/signal/desc", { id: peerId, desc });
-    });
-
-    socket.on("/signal/candidate", ({ id, candidate }) => {
-        const peer = peerInfo.get(id);
-        if (!peer || !peer.connected) {
-            socket.emit("/signal/error", {
-                status: 404,
-                message: "Peer not found",
-            });
-            return;
-        }
-
-        peer.socket.emit("/signal/candidate", { id: peerId, candidate });
+        peer.socket.emit("/signal", { id: peerId, desc, candidate });
     });
 });

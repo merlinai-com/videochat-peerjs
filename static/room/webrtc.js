@@ -96,7 +96,7 @@ export function connectToPeer(
         try {
             pc.makingOffer = true;
             await pc.conn.setLocalDescription();
-            socketio.emit("/signal/desc", {
+            socketio.emit("/signal", {
                 id,
                 desc: pc.conn.localDescription,
             });
@@ -109,7 +109,7 @@ export function connectToPeer(
 
     pc.conn.addEventListener("icecandidate", ({ candidate }) => {
         console.debug("icecandidate");
-        socketio.emit("/signal/candidate", { id, candidate });
+        socketio.emit("/signal", { id, candidate });
     });
 }
 
@@ -124,10 +124,11 @@ export function webrtcInit(socketio, localStream, state) {
     const peerConnections = {};
 
     socketio.on(
-        "/signal/desc",
-        /** @param {{ id: string, desc: RTCSessionDescription }} arg */ async ({
+        "/signal",
+        /** @param {{ id: string, desc?: RTCSessionDescription, candidate?: RTCIceCandidate }} arg */ async ({
             id,
             desc,
+            candidate,
         }) => {
             if (!state.connected) return;
 
@@ -137,45 +138,54 @@ export function webrtcInit(socketio, localStream, state) {
                 return;
             }
 
-            const readyForOffer =
-                !pc.makingOffer &&
-                (pc.conn.signalingState === "stable" || pc.settingRemoteAnswer);
-            const offerCollision = desc.type === "offer" && !readyForOffer;
+            if (desc) {
+                const readyForOffer =
+                    !pc.makingOffer &&
+                    (pc.conn.signalingState === "stable" ||
+                        pc.settingRemoteAnswer);
+                const offerCollision = desc.type === "offer" && !readyForOffer;
 
-            pc.ignoreOffer = offerCollision && !pc.polite;
-            if (pc.ignoreOffer) return;
+                pc.ignoreOffer = offerCollision && !pc.polite;
+                if (pc.ignoreOffer) return;
 
-            pc.settingRemoteAnswer = desc.type === "answer";
-            await pc.conn.setRemoteDescription(desc);
-            pc.settingRemoteAnswer = false;
-            if (desc.type === "offer") {
-                await pc.conn.setLocalDescription();
-                socketio.emit("/signal/desc", {
-                    id,
-                    desc: pc.conn.localDescription,
-                });
+                pc.settingRemoteAnswer = desc.type === "answer";
+                await pc.conn.setRemoteDescription(desc);
+                pc.settingRemoteAnswer = false;
+                if (desc.type === "offer") {
+                    await pc.conn.setLocalDescription();
+                    socketio.emit("/signal", {
+                        id,
+                        desc: pc.conn.localDescription,
+                    });
+                }
+            } else if (candidate) {
+                try {
+                    await pc.conn.addIceCandidate(candidate);
+                } catch (err) {
+                    if (!pc.ignoreOffer) console.error(err);
+                }
             }
         }
     );
 
-    socketio.on(
-        "/signal/candidate",
-        /** @param {{ id: string, candidate: RTCIceCandidate }} arg */ async ({
-            id,
-            candidate,
-        }) => {
-            if (!state.connected) return;
+    // socketio.on(
+    //     "/signal/candidate",
+    //     /** @param {{ id: string, candidate: RTCIceCandidate }} arg */ async ({
+    //         id,
+    //         candidate,
+    //     }) => {
+    //         if (!state.connected) return;
 
-            const pc = peerConnections[id];
-            if (!pc) return;
-            // if (!pc || pc.ignoreOffer) return;
-            try {
-                await pc.conn.addIceCandidate(candidate);
-            } catch (err) {
-                if (!pc.ignoreOffer) console.error(err);
-            }
-        }
-    );
+    //         const pc = peerConnections[id];
+    //         if (!pc) return;
+    //         // if (!pc || pc.ignoreOffer) return;
+    //         try {
+    //             await pc.conn.addIceCandidate(candidate);
+    //         } catch (err) {
+    //             if (!pc.ignoreOffer) console.error(err);
+    //         }
+    //     }
+    // );
 
     socketio.on("/room/peer-join", ({ id, polite }) => {
         if (!state.connected) return;
