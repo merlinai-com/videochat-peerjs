@@ -65,7 +65,7 @@ const defaultIceServer = [
 ];
 
 /**
- * @typedef {{ name: string, peers: Set<PeerID>, recordings: Map<string, string> }} Room
+ * @typedef {{ name: string, peers: Set<PeerInfo>, recordings: Map<string, string> }} Room
  * @typedef {string} PeerID
  * @typedef {string} RoomID
  * @typedef {{
@@ -258,15 +258,12 @@ socketIO.on("connect", async (socket) => {
         locals: socket.request.locals,
         socket,
     };
-    peerInfo.set(peerId, info);
 
     socket.on("disconnect", () => {
         if (info.room) {
-            info.room.peers.delete(peerId);
+            info.room.peers.delete(info);
             for (const peer of info.room.peers) {
-                peerInfo
-                    .get(peer)
-                    ?.socket.emit("/room/peer-leave", { id: peerId });
+                peer.socket.emit("/room/peer-leave", { id: peerId });
             }
         }
     });
@@ -277,9 +274,11 @@ socketIO.on("connect", async (socket) => {
             return void socket.emit("error", errors.roomNotFound.message);
 
         for (const peer of room.peers) {
-            if (peer !== peerId) {
-                const sock = peerInfo.get(peer)?.socket;
-                if (sock) sock.emit("/room/video", { sender: peerId, message });
+            if (peer !== info) {
+                peer.socket.emit("/room/video", {
+                    sender: peerId,
+                    message,
+                });
             }
         }
     });
@@ -288,18 +287,16 @@ socketIO.on("connect", async (socket) => {
         const room = roomByRoomID.get(roomId);
         if (!room)
             return void socket.emit("error", errors.roomNotFound.message);
-        for (const otherID of room.peers) {
-            if (otherID !== peerId) {
-                peerInfo.get(otherID)?.socket.emit("/room/peer-join", {
+        for (const other of room.peers) {
+            if (other !== info) {
+                other?.socket.emit("/room/peer-join", {
                     id: peerId,
                     polite: true,
                 });
-                socket.emit("/room/peer-join", { id: otherID, polite: false });
+                socket.emit("/room/peer-join", { id: other, polite: false });
             }
         }
-        room.peers.add(peerId);
-        const info = peerInfo.get(peerId);
-        if (!info) return;
+        room.peers.add(info);
         info.room = room;
     });
 

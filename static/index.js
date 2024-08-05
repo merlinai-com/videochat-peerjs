@@ -52,8 +52,6 @@ async function init() {
     socketio.emit("/room/join", { roomId });
     await recordingInit(socketio, localStream);
 
-    console.log("here ahfsd");
-
     socketio.on("/room/peer-join", (peer) => console.log("peer-join", peer));
     socketio.on("/room/peer-leave", (peer) => console.log("peer-leave", peer));
     // await main(roomInfo, socketio, peerHandlers);
