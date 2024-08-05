@@ -7,17 +7,34 @@ export const roomId = new URL(window.location.href).searchParams.get("room");
  * @template T
  * @param {string} id
  * @param {new (...args) => T} cls
+ * @returns {T | null}
+ */
+function getOptElementById(id, cls) {
+    const el = document.getElementById(id);
+    if (el && !(el instanceof cls))
+        throw new Error(
+            `Element ${id} is has the wrong class. Expected ${cls.name}, got ${el.constructor.name}`
+        );
+    return el;
+}
+
+/**
+ * @template T
+ * @param {string} id
+ * @param {new (...args) => T} cls
  * @returns {T}
  */
 function getElementById(id, cls) {
-    const el = document.getElementById(id);
+    const el = getOptElementById(id, cls);
     if (el === null) throw new Error(`No element with id "${id}" exists`);
-    if (!(el instanceof cls)) throw new Error(`Element ${id} is has the wrong class. Expected ${cls.name}, got ${el.constructor.name}`);
     return el;
 }
 
 /** Interactive elements */
 export const elements = {
+    // SSO
+    loginButton: getOptElementById("login-button", HTMLButtonElement),
+
     // Connecting
     roomForm: getElementById("room-form", HTMLFormElement),
     roomName: getElementById("room-name", HTMLInputElement),
@@ -43,7 +60,7 @@ export const elements = {
 /** Get a URL for a roomID/roomName
  * @param {string} roomID
  * @param {string} roomName
-*/
+ */
 export function getRoomURL(roomID, roomName) {
     const url = new URL(window.location.href);
     url.searchParams.delete("roomNotFound");

@@ -66,9 +66,10 @@ const defaultIceServer = [
 
 /**
  * @typedef {{ name: string, peers: Set<PeerInfo>, recordings: Map<string, string> }} Room
- * @typedef {string} PeerID
- * @typedef {string} RoomID
+ * @typedef {string} PeerId
+ * @typedef {string} RoomId
  * @typedef {{
+ *  id: PeerId,
  *  locals?: import("./sso.js").Locals,
  *  room?: Room,
  *  socket: SocketIO,
@@ -76,6 +77,7 @@ const defaultIceServer = [
  *      uuid: string,
  *      file: import("fs/promises").FileHandle,
  *  }
+ *  connected: boolean,
  * }} PeerInfo
  */
 
@@ -105,11 +107,11 @@ if (logRequests) {
 
 /**
  * Information about a client
- * @type {Map<PeerID, PeerInfo>}
+ * @type {Map<PeerId, PeerInfo>}
  */
 const peerInfo = new Map();
 
-/** All the rooms @type {Map<RoomID, Room>} */
+/** All the rooms @type {Map<RoomId, Room>} */
 const roomByRoomID = new Map();
 
 // Set up CORS middleware
@@ -126,7 +128,6 @@ app.set("view engine", "hbs");
 // Log in
 app.get("/auth/login", (req, res) => {
     res.render("login.hbs", {
-        cache: false,
         loginUrl: sso.loginURL(getRedirectUrl(req, "/auth/complete-login"))
             .href,
         logoutUrl: sso.logoutURL(getRedirectUrl(req, "/auth/complete-login"))
@@ -253,19 +254,27 @@ socketIO.on("connect", async (socket) => {
     const peerId = randomUUID();
     /** @type {PeerInfo} */
     const info = {
+        id: peerId,
         /** @type {import("./sso.js").Locals} */
         // @ts-ignore
         locals: socket.request.locals,
         socket,
+        connected: false,
     };
+    peerInfo.set(peerId, info);
 
-    socket.on("disconnect", () => {
+    const leaveRoom = () => {
         if (info.room) {
             info.room.peers.delete(info);
             for (const peer of info.room.peers) {
                 peer.socket.emit("/room/peer-leave", { id: peerId });
             }
         }
+    };
+
+    socket.on("disconnect", () => {
+        leaveRoom();
+        peerInfo.delete(peerId);
     });
 
     socket.on("/room/video", ({ message }) => {
@@ -293,11 +302,17 @@ socketIO.on("connect", async (socket) => {
                     id: peerId,
                     polite: true,
                 });
-                socket.emit("/room/peer-join", { id: other, polite: false });
+                socket.emit("/room/peer-join", { id: other.id, polite: false });
             }
         }
         room.peers.add(info);
         info.room = room;
+        info.connected = true;
+    });
+
+    socket.on("/room/leave", () => {
+        leaveRoom();
+        info.connected = false;
     });
 
     // Streaming upload handlers
@@ -335,7 +350,7 @@ socketIO.on("connect", async (socket) => {
     // Signalling
     socket.on("/signal/desc", ({ id, desc }) => {
         const peer = peerInfo.get(id);
-        if (!peer) {
+        if (!peer || !peer.connected) {
             socket.emit("/signal/error", {
                 status: 404,
                 message: "Peer not found",
@@ -348,7 +363,7 @@ socketIO.on("connect", async (socket) => {
 
     socket.on("/signal/candidate", ({ id, candidate }) => {
         const peer = peerInfo.get(id);
-        if (!peer) {
+        if (!peer || !peer.connected) {
             socket.emit("/signal/error", {
                 status: 404,
                 message: "Peer not found",

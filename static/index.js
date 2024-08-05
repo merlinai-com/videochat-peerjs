@@ -8,54 +8,74 @@ import { io } from "/socket.io/socket.io.esm.min.js";
 import { elements, roomId } from "./utils.js";
 import { webrtcInit } from "./webrtc.js";
 
-async function loginInit() {
-    const loginButton = document.getElementById("login-button");
-    const loginUrl = loginButton?.getAttribute("data-login-url");
-    if (loginButton instanceof HTMLButtonElement) {
-        const callback = async () => {
-            try {
-                // @ts-ignore
-                await document.requestStorageAccessFor(new URL(loginUrl).origin);
-            } catch (e) {
-                console.error("Unable to request storage access:", e);
-            } finally {
-                window.location.pathname = "/auth/login";
-            }
+function loginInit() {
+    const loginUrl = elements.loginButton?.getAttribute("data-login-url");
+    elements.loginButton?.addEventListener("click", async () => {
+        try {
+            // @ts-ignore
+            await document.requestStorageAccessFor(new URL(loginUrl).origin);
+        } catch (e) {
+            console.error("Unable to request storage access:", e);
+        } finally {
+            window.location.pathname = "/auth/login";
         }
-        loginButton.addEventListener("click", callback);
-        loginButton.addEventListener("keypress", ({ key }) => {
-            if (key === "Enter") callback();
-        });
-    }
+    });
 }
 
 async function mediaInit() {
-    const localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: { echoCancellation: true } });
+    const localStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: { echoCancellation: true },
+    });
     elements.localVideo.srcObject = localStream;
     return { localStream };
 }
 
+/**
+ * Initialise the connect to/disconnect from call button
+ * @param {{connected: boolean}} state
+ * @param {{onconnect?: () => void, ondisconnect?: () => void}} opts
+ */
+function connectButtonInit(state, opts) {
+    elements.connectButton.addEventListener("click", () => {
+        state.connected = !state.connected;
+        elements.connectButton.innerText = state.connected
+            ? "Disconnect from call"
+            : "Connect to call";
+        if (state.connected) {
+            if (opts.onconnect) opts.onconnect();
+        } else {
+            if (opts.ondisconnect) opts.ondisconnect();
+        }
+    });
+}
+
 /** Initialisation after page load */
 async function init() {
+    loginInit();
     await roomInit();
     const { localStream } = await mediaInit();
 
-    // Wait for user interaction
-    // @ts-ignore
-    await new Promise((resolve) => elements.connectButton.addEventListener("click", () => resolve()));
-    elements.connectButton.disabled = true;
-
     /** @type {import("socket.io").Socket} */
     const socketio = io();
+    // socketio.onAny((...args) => console.log(args));
 
-    webrtcInit(socketio, localStream);
-    socketio.emit("/room/join", { roomId });
-    await recordingInit(socketio, localStream);
+    const state = { connected: false };
 
-    socketio.on("/room/peer-join", (peer) => console.log("peer-join", peer));
-    socketio.on("/room/peer-leave", (peer) => console.log("peer-leave", peer));
-    // await main(roomInfo, socketio, peerHandlers);
-    await loginInit();
+    const webrtc = webrtcInit(socketio, localStream, state);
+
+    const recording = recordingInit(socketio, localStream, state);
+
+    connectButtonInit(state, {
+        onconnect: () => {
+            socketio.emit("/room/join", { roomId });
+        },
+        ondisconnect: () => {
+            socketio.emit("/room/leave");
+            webrtc.disconnectHandler();
+            recording.disconnectHandler();
+        },
+    });
 }
 
 document.addEventListener("DOMContentLoaded", init);

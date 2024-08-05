@@ -6,8 +6,10 @@ import { elements, roomId } from "./utils.js";
 /**
  * @param {import("socket.io").Socket} socketio
  * @param {MediaStream} localStream
+ * @param {{connected: boolean}} state
+ * @returns {{disconnectHandler: () => void}}
  */
-export async function recordingInit(socketio, localStream) {
+export function recordingInit(socketio, localStream, state) {
     // TODO: Find the best codecs
     const mediaMimeTypes = ["video/webm", "video/ogg"];
     let recorderMimeType = mediaMimeTypes.find(MediaRecorder.isTypeSupported);
@@ -26,6 +28,8 @@ export async function recordingInit(socketio, localStream) {
     const request = indexedDB.open("videoChatDB", 1);
 
     socketio.on("/room/video", ({ message }) => {
+        if (!state.connected) return;
+
         switch (message) {
             case "record/start":
                 startRecording(localStream);
@@ -52,7 +56,7 @@ export async function recordingInit(socketio, localStream) {
         loadRecordedVideo();
     });
 
-    request.addEventListener("upgradeneeded", function (event) {
+    request.addEventListener("upgradeneeded", function () {
         db = request.result;
         db.createObjectStore("videos", { keyPath: "id", autoIncrement: true });
         console.log("Object store created.");
@@ -82,6 +86,12 @@ export async function recordingInit(socketio, localStream) {
         socketio.emit("/room/video", { message: "record/upload" });
     });
 
+    return { disconnectHandler: () => stopRecording() };
+
+    // =================
+    // Handler functions
+    // =================
+
     /**
      * Start recording
      * @param {MediaStream} stream
@@ -95,6 +105,7 @@ export async function recordingInit(socketio, localStream) {
         /** @type {string} */
         const uuid = await socketio.emitWithAck("/upload/start");
         console.log(`Started recording ${uuid}`);
+        /** true after the mediaRecorder stop event has been sent, but before /upload/stop has been sent */
         let sendUploadStop = false;
 
         // Set up media recorder callbacks

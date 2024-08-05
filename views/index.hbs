@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <!-- peerjs-frontend/index.html  jd & chatgpt4o  6-8 july 2024 -->
+
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PeerJS Video Chat</title>
-    <link rel="icon" href="data:,">
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="./style.css" />
     <script type="module" defer src="./index.js"></script>
 </head>
@@ -18,9 +19,11 @@
         Logged in as {{user.name}} ({{user.email}})
         <a href="{{logoutUrl}}">Log out</a>
     </div>
-    {{^}}
+    {{else}}
     <div>
-        <button role="link" id="login-button" data-login-url="{{loginUrl}}">Log in</a>
+        <button role="link" id="login-button" data-login-url="{{loginUrl}}">
+            Log in
+        </button>
     </div>
     {{/if}}
     <div>
@@ -40,7 +43,9 @@
         <button id="save-record" disabled>Save Recording</button>
         <button id="delete-record" disabled>Delete Recording</button>
         <button id="upload-record" disabled>Save to Server</button>
-        <a class="button disabled" id="download-record" download="recording.webm">Download Recording</a>
+        <a class="button disabled" id="download-record" download="recording.webm">
+            Download Recording
+        </a>
     </div>
 </body>
 

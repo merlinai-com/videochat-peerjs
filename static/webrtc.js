@@ -1,5 +1,6 @@
 // @ts-check
 import { elements } from "./utils.js";
+// @ts-ignore
 import iceServers from "/api/ice-servers.js";
 
 /**
@@ -8,10 +9,10 @@ import iceServers from "/api/ice-servers.js";
  */
 function getSortedCodecs() {
     /**
-    * @param {RTCRtpCodecCapability[]} codecs
-    * @param {string[]} preferredOrder
-    * @returns {RTCRtpCodecCapability[]}
-    */
+     * @param {RTCRtpCodecCapability[]} codecs
+     * @param {string[]} preferredOrder
+     * @returns {RTCRtpCodecCapability[]}
+     */
     function sortByMimeTypes(codecs, preferredOrder) {
         return codecs.sort((a, b) => {
             const indexA = preferredOrder.indexOf(a.mimeType);
@@ -65,22 +66,24 @@ function ensureVideoOutput(id, stream) {
  * @param {Record<string, PeerState>} peerConnections
  * @param {boolean} polite
  */
-export async function connectToPeer(socketio, localStream, peerConnections, id, polite) {
-    const pc = (peerConnections[id] ??=
-    {
-        conn: new RTCPeerConnection(rtcConfig), polite,
-        makingOffer: false, ignoreOffer: false, settingRemoteAnswer: false
+export function connectToPeer(
+    socketio,
+    localStream,
+    peerConnections,
+    id,
+    polite
+) {
+    const pc = (peerConnections[id] ??= {
+        conn: new RTCPeerConnection(rtcConfig),
+        polite,
+        makingOffer: false,
+        ignoreOffer: false,
+        settingRemoteAnswer: false,
     });
 
     for (const track of localStream.getTracks()) {
         pc.conn.addTrack(track, localStream);
     }
-
-    // try {
-    //     pc.conn.getTransceivers().forEach(t => t.setCodecPreferences(sortedCodecs))
-    // } catch (err) {
-    //     console.error("While setting codec preference:", err);
-    // }
 
     pc.conn.addEventListener("track", ({ track, streams }) => {
         console.log("track", { track, streams });
@@ -93,7 +96,10 @@ export async function connectToPeer(socketio, localStream, peerConnections, id, 
         try {
             pc.makingOffer = true;
             await pc.conn.setLocalDescription();
-            socketio.emit("/signal/desc", { id, desc: pc.conn.localDescription });
+            socketio.emit("/signal/desc", {
+                id,
+                desc: pc.conn.localDescription,
+            });
         } catch (err) {
             console.error(err);
         } finally {
@@ -110,20 +116,30 @@ export async function connectToPeer(socketio, localStream, peerConnections, id, 
 /**
  * @param {import("socket.io").Socket} socketio
  * @param {MediaStream} localStream
+ * @param {{connected: boolean}} state
+ * @returns {{disconnectHandler: () => void}}
  */
-export function webrtcInit(socketio, localStream) {
+export function webrtcInit(socketio, localStream, state) {
     /** @type {Record<string, PeerState>} */
     const peerConnections = {};
 
-    socketio.on("/signal/desc",
-        /** @param {{ id: string, desc: RTCSessionDescription }} arg */async ({ id, desc }) => {
+    socketio.on(
+        "/signal/desc",
+        /** @param {{ id: string, desc: RTCSessionDescription }} arg */ async ({
+            id,
+            desc,
+        }) => {
+            if (!state.connected) return;
+
             const pc = peerConnections[id];
             if (!pc) {
                 console.error(`RTCPeerConnection not initialised for ${id}`);
                 return;
             }
 
-            const readyForOffer = !pc.makingOffer && (pc.conn.signalingState === "stable" || pc.settingRemoteAnswer);
+            const readyForOffer =
+                !pc.makingOffer &&
+                (pc.conn.signalingState === "stable" || pc.settingRemoteAnswer);
             const offerCollision = desc.type === "offer" && !readyForOffer;
 
             pc.ignoreOffer = offerCollision && !pc.polite;
@@ -134,26 +150,40 @@ export function webrtcInit(socketio, localStream) {
             pc.settingRemoteAnswer = false;
             if (desc.type === "offer") {
                 await pc.conn.setLocalDescription();
-                socketio.emit("/signal/desc", { id, desc: pc.conn.localDescription });
+                socketio.emit("/signal/desc", {
+                    id,
+                    desc: pc.conn.localDescription,
+                });
             }
-        });
-
-    socketio.on("/signal/candidate", /** @param {{ id: string, candidate: RTCIceCandidate }} arg */ async ({ id, candidate }) => {
-        const pc = peerConnections[id];
-        if (!pc) return;
-        // if (!pc || pc.ignoreOffer) return;
-        try {
-            await pc.conn.addIceCandidate(candidate);
-        } catch (err) {
-            if (!pc.ignoreOffer) console.error(err);
         }
-    });
+    );
+
+    socketio.on(
+        "/signal/candidate",
+        /** @param {{ id: string, candidate: RTCIceCandidate }} arg */ async ({
+            id,
+            candidate,
+        }) => {
+            if (!state.connected) return;
+
+            const pc = peerConnections[id];
+            if (!pc) return;
+            // if (!pc || pc.ignoreOffer) return;
+            try {
+                await pc.conn.addIceCandidate(candidate);
+            } catch (err) {
+                if (!pc.ignoreOffer) console.error(err);
+            }
+        }
+    );
 
     socketio.on("/room/peer-join", ({ id, polite }) => {
+        if (!state.connected) return;
         connectToPeer(socketio, localStream, peerConnections, id, polite);
     });
 
-    socketio.on("/room/peer-leave", ({ id }) => {
+    /** @param {string} id */
+    const leaveHandler = (id) => {
         try {
             peerConnections[id]?.conn.close();
         } catch (err) {
@@ -162,8 +192,17 @@ export function webrtcInit(socketio, localStream) {
             document.getElementById(id)?.remove();
             delete peerConnections[id];
         }
-    });
+    };
+
+    socketio.on("/room/peer-leave", ({ id }) => leaveHandler(id));
 
     socketio.on("/signal/error", (error) => console.error(error));
-}
 
+    const disconnectHandler = () => {
+        for (const peer in peerConnections) {
+            leaveHandler(peer);
+        }
+    };
+
+    return { disconnectHandler };
+}
