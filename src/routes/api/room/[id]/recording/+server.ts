@@ -34,7 +34,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
     const digits = Math.floor(Math.log10(room.recordings.length)) + 1;
     room.recordings.forEach((recording, index) => {
         zip.file(
-            getZipPath(recording, { index, digits }),
+            getZipPath(recording, { index: index + 1, digits }),
             fs.readFile(getUploadPath(uploadDir, recording.id.id as UUID))
         );
     });
