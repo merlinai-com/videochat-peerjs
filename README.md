@@ -1,26 +1,38 @@
-# Video chat website using peerjs for WebRTC
+# create-svelte
 
-## Install
+Everything you need to build a Svelte project, powered by [`create-svelte`](https://github.com/sveltejs/kit/tree/main/packages/create-svelte).
 
-```bash
-pnpm install
-```
+## Creating a project
 
-Set up the `.env` file:
-
-```
-PORT=10100
-HOST=localhost
-```
-
-- `PORT` is the port to listen on
-- `HOST` is the IP address to listen on, or `localhost`
-- `UPLOAD_DIRECTORY` the directory uploads are stored in (default: `./uploads`)
-- `TRUST_PROXY` set this to `true` if running behind a reverse proxy
-  - **Important**: the last reverse proxy must set `X-Forwarded-For`, `X-Forwarded-Host` and `X-Forwarded-Proto`
-
-## Running
+If you're seeing this, you've probably already done this step. Congrats!
 
 ```bash
-./start_server.sh
+# create a new project in the current directory
+npm create svelte@latest
+
+# create a new project in my-app
+npm create svelte@latest my-app
 ```
+
+## Developing
+
+Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+
+```bash
+npm run dev
+
+# or start the server and open the app in a new browser tab
+npm run dev -- --open
+```
+
+## Building
+
+To create a production version of your app:
+
+```bash
+npm run build
+```
+
+You can preview the production build with `npm run preview`.
+
+> To deploy your app, you may need to install an [adapter](https://kit.svelte.dev/docs/adapters) for your target environment.

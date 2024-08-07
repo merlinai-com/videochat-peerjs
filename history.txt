@@ -1,0 +1,29 @@
+#V2
+create room set owner = user:foo, name = "foo", users = [];
+fn::createRoom("foO", user:foo)
+fn::createRoom("foo")
+select * From user
+insert into user {email :"z4@foo.com"}
+fn::getOrCreateUser("z5@foo.com")
+fn::createRoom("room1", "Room 1")
+fn::queryRoom(room:fahk)
+fn::createUser("z6@foo.com")
+fn::createUser("z7@foo.com")
+<uuid>"fsa"
+fn::getUserByCurrentId("foo")
+select * from recording
+select id from only recording:none
+(select id from only recording:none) != NONE
+(select id from only recording:none) == NONE
+fn::uploadExists(recording:foo)
+select * from recordin
+select * from recording
+select value mimeType from recording:⟨01912cad-9075-7732-bb3c-3ba9b5ae0b6d⟩
+select value mimeType from only recording:⟨01912cad-9075-7732-bb3c-3ba9b5ae0b6d⟩
+select value owner from only recording:⟨01912cad-9075-7732-bb3c-3ba9b5ae0b6d⟩
+remove field location on recording
+delete room
+delete recording
+delete user
+select * from recording
+select * from room
