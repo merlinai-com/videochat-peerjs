@@ -2,8 +2,9 @@ import { Database } from "backend/database";
 import * as fs from "node:fs/promises";
 import { env } from "$env/dynamic/private";
 import * as path from "node:path";
+import { building } from "$app/environment";
 
-export const db = await Database.init(env);
+export const db = await Database.init(env, building);
 
 export const compressionLevel = 6;
 

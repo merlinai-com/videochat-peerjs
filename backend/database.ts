@@ -65,19 +65,22 @@ export class Database {
     }
 
     static async init(
-        env: Record<string, string | undefined>
+        env: Record<string, string | undefined>,
+        building?: boolean
     ): Promise<Database> {
         const db = new Surreal();
-        await db.connect(get(env, "DATABASE_ENDPOINT"), {
-            namespace: get(env, "DATABASE_NAMESPACE"),
-            database: get(env, "DATABASE_DATABASE"),
-            auth: {
+        if (!building) {
+            await db.connect(get(env, "DATABASE_ENDPOINT"), {
                 namespace: get(env, "DATABASE_NAMESPACE"),
                 database: get(env, "DATABASE_DATABASE"),
-                username: get(env, "DATABASE_USER"),
-                password: get(env, "DATABASE_PASS"),
-            },
-        });
+                auth: {
+                    namespace: get(env, "DATABASE_NAMESPACE"),
+                    database: get(env, "DATABASE_DATABASE"),
+                    username: get(env, "DATABASE_USER"),
+                    password: get(env, "DATABASE_PASS"),
+                },
+            });
+        }
         return new Database(db);
     }
 
