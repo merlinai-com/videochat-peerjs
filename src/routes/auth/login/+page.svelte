@@ -7,12 +7,6 @@
 <iframe src={data.loginUrl} title="Log in"></iframe>
 
 <style>
-    :global(body) {
-        padding: 0;
-        margin: 0;
-        overflow: hidden;
-    }
-
     iframe {
         border: none;
         width: 100vw;
