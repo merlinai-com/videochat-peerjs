@@ -170,7 +170,7 @@
         {/each}
     </div>
     {#if localStream}
-        <Video stream={localStream} />
+        <Video stream={localStream} muted />
     {/if}
     {#if data.isOwner}
         <button

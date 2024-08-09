@@ -2,6 +2,7 @@
     import { onMount } from "svelte";
 
     export let stream: MediaStream;
+    export let muted: boolean = false;
 
     let video: HTMLVideoElement;
 
@@ -12,5 +13,10 @@
 </script>
 
 <!-- svelte-ignore a11y-media-has-caption -->
-<video bind:this={video} disablepictureinpicture on:contextmenu|preventDefault>
+<video
+    bind:this={video}
+    disablepictureinpicture
+    on:contextmenu|preventDefault
+    {muted}
+>
 </video>
