@@ -61,6 +61,11 @@ DEFINE FUNCTION fn::getUser($email: string) {
     RETURN array::first($user).id;
 };
 
+DEFINE FUNCTION fn::getOrCreateUser($email: string) {
+    LET $user = (INSERT INTO user { email: $email });
+    RETURN array::first($user).id;
+}
+
 DEFINE FUNCTION fn::createUser($email: string) {
     CREATE user SET email = $email;
 };
