@@ -3,7 +3,9 @@ import type { PageServerLoad } from "./$types";
 
 export let load: PageServerLoad = async ({ url }) => {
     const redirect = url.searchParams.get("redirect") ?? "/";
+    const redirectUrl = new URL("/auth/complete-login", url.origin);
+    redirectUrl.searchParams.set("redirect", redirect);
     return {
-        loginUrl: sso.loginURL(new URL(redirect, url.origin)).href,
+        loginUrl: sso.loginURL(redirectUrl).href,
     };
 };
