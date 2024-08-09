@@ -10,7 +10,9 @@ export const compressionLevel = 6;
 
 export const uploadDir = path.resolve(env.UPLOAD_DIRECTORY ?? "./uploads");
 
-const defaultIceServers: RTCIceServer[] = [{ urls: "stun.l.google.com:19302" }];
+const defaultIceServers: RTCIceServer[] = [
+    { urls: "stun:stun.l.google.com:19302" },
+];
 
 export let iceServers: RTCIceServer[];
 try {
