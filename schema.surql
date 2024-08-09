@@ -46,7 +46,7 @@ DEFINE FIELD startTime ON recording TYPE datetime;
 -- A room
 DEFINE TABLE room TYPE NORMAL;
 DEFINE FIELD name ON room TYPE string;
-DEFINE FIELD owner ON room TYPE option<record<user>>;
+DEFINE FIELD owner ON room TYPE record<user>;
 DEFINE FIELD users ON room TYPE set<record<user>>;
 DEFINE FIELD recordings ON room TYPE set<record<recording>>;
 
@@ -84,12 +84,8 @@ DEFINE FUNCTION fn::getMessages($from: string, $to: string, $limit: int, $start:
     RETURN (SELECT * FROM message WHERE (in = $from && out = $to) || (in = $to && out = $from) ORDER BY sent_time LIMIT $limit START $start);
 };
 
-DEFINE FUNCTION fn::createRoom($name: string, $owner: option<string>) {
-    LET $room = IF $owner {
-        (CREATE room SET name = $name, owner = fn::getOrCreateUser($owner), users = [], recordings = [])
-    } ELSE {
-        (CREATE room SET name = $name, users = [], recordings = [])
-    };
+DEFINE FUNCTION fn::createRoom($name: string, $owner: string) {
+    LET $room = (CREATE room SET name = $name, owner = fn::getOrCreateUser($owner), users = [], recordings = []);
     RETURN array::first($room).id;
 };
 

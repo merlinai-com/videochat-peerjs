@@ -9,10 +9,6 @@ export const load: PageServerLoad = async ({ params, locals }) => {
         roomName: room.name,
         roomId: params.id,
         iceServers,
-        hasOwner: !!room.owner,
-        isOwner:
-            !!room.owner &&
-            !!locals.user &&
-            room.owner.email == locals.user?.email,
+        isOwner: !!locals.user && room.owner.email == locals.user.email,
     };
 };

@@ -45,7 +45,7 @@ export type Room<
 > = {
     id: RoomId;
     name: string;
-    owner?: O;
+    owner: O;
     users: UserId[];
     recordings: R[];
 };
@@ -148,7 +148,7 @@ export class Database {
 
     // async getMessages
 
-    async createRoom(name: string, owner?: string): Promise<RoomId> {
+    async createRoom(name: string, owner: string): Promise<RoomId> {
         return await this.run("fn::createRoom", name, owner);
     }
 

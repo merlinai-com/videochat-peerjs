@@ -22,7 +22,7 @@
 {/if}
 
 <div>
-    <CreateRoom />
+    <CreateRoom user={data.user} />
 </div>
 
 {#if data.user}

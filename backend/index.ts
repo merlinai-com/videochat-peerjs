@@ -150,7 +150,6 @@ export async function injectSocketIO(
         });
 
         socket.on("disconnect", () => {
-            console.log("disconnect");
             leaveRoom();
             userSub?.unsubscribe();
             closeUploadFile();
