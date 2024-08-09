@@ -1,4 +1,5 @@
 import type { UUID } from "backend/types";
+import { AsyncQueue } from "backend/queue";
 
 export type Recording = {
     blob: Blob;
@@ -33,13 +34,16 @@ function saveRecording(db: IDBDatabase, recording: Recording): Promise<void> {
     });
 }
 
-export async function createRecordingHandler(callbacks: {
-    upload_start: (arg: { mimeType: string }) => Promise<{ id: UUID }>;
-    upload_chunk: (id: UUID, data: Blob) => void;
-    upload_stop: (id: UUID) => void;
-    start: () => void;
-    stop: () => void;
-}): Promise<{
+export async function createRecordingHandler(
+    callbacks: {
+        upload_start: (arg: { mimeType: string }) => Promise<{ id: UUID }>;
+        upload_chunk: (id: UUID, data: ArrayBuffer) => void;
+        upload_stop: (id: UUID) => void;
+        start: () => void;
+        stop: () => void;
+    },
+    signal?: AbortSignal
+): Promise<{
     start: (localStream: MediaStream) => Promise<void>;
     stop: () => void;
 }> {
@@ -58,6 +62,18 @@ export async function createRecordingHandler(callbacks: {
     //     | undefined;
     let mediaRecorder: MediaRecorder | undefined;
 
+    const callbackQueue = new AsyncQueue<
+        | { ev: "upload_chunk"; id: UUID; data: Promise<ArrayBuffer> }
+        | { ev: "upload_stop"; id: UUID }
+    >();
+    callbackQueue.consume(async (val) => {
+        if (val.ev === "upload_chunk") {
+            callbacks.upload_chunk(val.id, await val.data);
+        } else {
+            callbacks.upload_stop(val.id);
+        }
+    }, signal);
+
     return {
         async start(stream) {
             const { id } = await callbacks.upload_start({ mimeType });
@@ -71,7 +87,11 @@ export async function createRecordingHandler(callbacks: {
             mediaRecorder.addEventListener("dataavailable", (ev) => {
                 if (ev.data.size > 0) {
                     currentRecording.blobs.push(ev.data);
-                    callbacks.upload_chunk(currentRecording.id, ev.data);
+                    callbackQueue.push({
+                        ev: "upload_chunk",
+                        id: currentRecording.id,
+                        data: ev.data.arrayBuffer(),
+                    });
                 }
             });
             mediaRecorder.addEventListener("stop", async () => {
@@ -84,7 +104,10 @@ export async function createRecordingHandler(callbacks: {
                     }),
                 };
                 recordings.push(recording);
-                callbacks.upload_stop(currentRecording.id);
+                callbackQueue.push({
+                    ev: "upload_stop",
+                    id: currentRecording.id,
+                });
                 callbacks.stop();
                 await saveRecording(db, recording);
             });

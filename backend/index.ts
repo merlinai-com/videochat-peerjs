@@ -14,6 +14,7 @@ import * as path from "node:path";
 import { Database } from "./database.js";
 import { RecordId } from "surrealdb.js";
 import { createUploadSubscriber } from "./upload.js";
+import msgpackParser from "socket.io-msgpack-parser";
 
 /** Error messages */
 const errors = {
@@ -50,6 +51,7 @@ export async function injectSocketIO(
         connectionStateRecovery: {
             maxDisconnectionDuration: 2 * 60 * 1000,
         },
+        parser: msgpackParser,
     });
 
     socketIO.engine.on("connection", (rawSocket) => {
@@ -74,7 +76,7 @@ export async function injectSocketIO(
         };
 
         // Uncomment the next line to log all messages
-        // socket.onAny(console.log);
+        socket.onAny(console.log);
 
         const roomListeners: Listeners<`room/${string}`, PublisherEvents> = {
             join({ id: peerId }) {

@@ -1,6 +1,6 @@
 <script lang="ts">
     import { fetchJson } from "$lib";
-    import { io, type Socket } from "socket.io-client";
+    import { io, type Socket } from "$lib/socket";
     import type {
         ClientToServerEvents,
         ServerToClientEvents,
@@ -25,9 +25,7 @@
         stopRecording: () => {},
     };
 
-    async function init(
-        socket: Socket<ServerToClientEvents, ClientToServerEvents>
-    ) {
+    async function init(socket: Socket) {
         localStream = await navigator.mediaDevices.getUserMedia({
             video: true,
             audio: true,
@@ -106,7 +104,7 @@
     }
 
     onMount(() => {
-        const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io();
+        const socket = io();
         init(socket);
         return () => socket.close();
     });

@@ -1,32 +1,32 @@
 import { ResponseError, Surreal, UUID as SurrealUUID } from "surrealdb.js";
 import { RecordId } from "surrealdb.js";
-import type { UUID } from "./types.js";
+import type { Email, UUID } from "./types.js";
 
 export type UserId = RecordId<"user">;
 export type User = {
     id: UserId;
-    email: string;
+    email: Email;
     current_id?: UUID;
+};
+
+export type AttachmentId = RecordId<"attachment">;
+export type Attachment = {
+    name: string;
+    group: GroupId;
 };
 
 export type MessageId = RecordId<"message">;
 export type Message<
     I extends User | UserId = UserId,
-    O extends User | UserId = UserId
+    O extends User | UserId = UserId,
+    A extends Attachment | AttachmentId = AttachmentId
 > = {
     id: MessageId;
     in: I;
     out: O;
     content: string;
+    attachment?: A;
     sent_time: Date;
-};
-
-export type UserExtraId = RecordId<"user_extra">;
-export type UserExtra<U extends User | UserId = UserId> = {
-    id: UserExtraId;
-    user: U;
-    sent_to: UserId[];
-    recv_from: UserId[];
 };
 
 export type RecordingId = RecordId<"recording">;
@@ -48,6 +48,19 @@ export type Room<
     owner: O;
     users: UserId[];
     recordings: R[];
+};
+
+export type GroupId = RecordId<"group">;
+export type Group<O extends User | UserId> = (
+    | { type: "p2p"; name?: string; owner?: O }
+    | { type: "group"; name: string; owner: O }
+) & { messages: MessageId[] };
+
+export type UserExtraId = RecordId<"user_extra">;
+export type UserExtra = {
+    id: UserExtraId;
+    user: User;
+    in: (GroupId | RoomId)[];
 };
 
 function get(env: Record<string, string | undefined>, v: string): string {
@@ -105,16 +118,9 @@ export class Database {
         return Database.convert(res);
     }
 
-    async createUser(email: string): Promise<void> {
-        await this.run("fn::createUser", email);
-    }
-
-    async getUserExtra(email: string): Promise<UserExtra<User> | null> {
+    async getUserExtra(email: Email): Promise<UserExtra | null> {
         try {
-            return await this.run<UserExtra<User> | null>(
-                "fn::getUserExtra",
-                email
-            );
+            return await this.run<UserExtra | null>("fn::getUserExtra", email);
         } catch (err) {
             if (
                 err instanceof ResponseError &&
@@ -130,8 +136,8 @@ export class Database {
     }
 
     async sendMessage(
-        from: string,
-        to: string,
+        from: Email,
+        to: Email,
         content: string
     ): Promise<ResponseError | undefined> {
         try {
@@ -146,9 +152,15 @@ export class Database {
         }
     }
 
+    async getContacts(
+        email: Email
+    ): Promise<{ sent_to: (User | Room)[]; recv_from: User[] }> {
+        return await this.run("fn::getContacts", email);
+    }
+
     // async getMessages
 
-    async createRoom(name: string, owner: string): Promise<RoomId> {
+    async createRoom(name: string, owner: Email): Promise<RoomId> {
         return await this.run("fn::createRoom", name, owner);
     }
 
@@ -156,7 +168,7 @@ export class Database {
         return await this.run("fn::queryRoom", new RecordId("room", id));
     }
 
-    async joinRoom(email: string, id: UUID, room: RoomId) {
+    async joinRoom(email: Email, id: UUID, room: RoomId) {
         await this.run("fn::joinRoom", email, id, room);
     }
 

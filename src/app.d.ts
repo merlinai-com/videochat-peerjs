@@ -1,3 +1,4 @@
+import type { Email } from "backend/types";
 import type { User, Session } from "sso";
 
 // See https://kit.svelte.dev/docs/types#app
@@ -6,7 +7,7 @@ declare global {
     namespace App {
         // interface Error {}
         interface Locals {
-            user: User | null;
+            user: (User & { email: Email }) | null;
             session: Session | null;
         }
         interface PageData {

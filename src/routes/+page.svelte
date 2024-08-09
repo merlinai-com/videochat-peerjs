@@ -1,5 +1,6 @@
 <script lang="ts">
     import CreateRoom from "$lib/components/CreateRoom.svelte";
+    import Messages from "./Messages.svelte";
     import type { PageData } from "./$types";
 
     export let data: PageData;
@@ -21,13 +22,6 @@
     </div>
 {/if}
 
-<div>
-    <CreateRoom user={data.user} />
-</div>
+<CreateRoom user={data.user} />
 
-{#if data.user}
-    <div>
-        <h1>Messages</h1>
-        <ul id="message-list"></ul>
-    </div>
-{/if}
+<Messages {data} />

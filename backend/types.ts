@@ -1,6 +1,13 @@
 import type { RecordingId, UserId } from "./database.js";
 
 export type UUID = ReturnType<typeof crypto.randomUUID>;
+export type Email = `${string}@${string}.${string}`;
+
+const emailRegex = /^[^\s@]+@[^\s@.]+\.[^\s@]+$/;
+
+export function isEmail(email: string): email is Email {
+    return emailRegex.test(email);
+}
 
 export type RecordingEvent = (arg: {
     action: "start" | "stop";
@@ -36,7 +43,7 @@ export interface ClientToServerEvents {
             arg: { id: UUID; error?: never } | { id?: never; error: string }
         ) => void
     ) => void;
-    upload_chunk: (id: UUID, data: Blob | Buffer) => void;
+    upload_chunk: (id: UUID, data: ArrayBuffer) => void;
     upload_stop: (id: UUID) => void;
 }
 
