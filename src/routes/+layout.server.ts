@@ -5,9 +5,10 @@ import type { LayoutServerLoad } from "./$types";
 export const load: LayoutServerLoad = async ({ locals, url }) => {
     return {
         authURLs: {
-            login:
-                "/auth/login?" +
-                new URLSearchParams({ redirect: url.pathname }),
+            login: sso.loginURL(url).href,
+            // login:
+            //     "/auth/login?" +
+            //     new URLSearchParams({ redirect: url.pathname }),
             logout: sso.logoutURL(url).href,
         },
         user: locals.user,
