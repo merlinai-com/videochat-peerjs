@@ -1,8 +1,10 @@
-import { Database } from "backend/database";
-import * as fs from "node:fs/promises";
-import { env } from "$env/dynamic/private";
-import * as path from "node:path";
 import { building } from "$app/environment";
+import { env } from "$env/dynamic/private";
+import { Database } from "backend/lib/database";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+
+export { getUserId } from "backend/lib/login";
 
 export const db = await Database.init(env, building);
 

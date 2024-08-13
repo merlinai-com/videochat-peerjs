@@ -1,5 +1,5 @@
-import type { UUID } from "backend/types";
-import { AsyncQueue } from "backend/queue";
+import type { UUID } from "backend/lib/types";
+import { AsyncQueue } from "backend/lib/queue";
 
 export type Recording = {
     blob: Blob;
@@ -57,22 +57,27 @@ export async function createRecordingHandler(
     const db = await initIndexedDb();
     let recordings: Recording[] = [];
 
-    // let currentRecording:
-    //     | { startTime: Date; blobs: Blob[]; id: UUID }
-    //     | undefined;
     let mediaRecorder: MediaRecorder | undefined;
 
     const callbackQueue = new AsyncQueue<
         | { ev: "upload_chunk"; id: UUID; data: Promise<ArrayBuffer> }
         | { ev: "upload_stop"; id: UUID }
     >();
-    callbackQueue.consume(async (val) => {
-        if (val.ev === "upload_chunk") {
-            callbacks.upload_chunk(val.id, await val.data);
-        } else {
-            callbacks.upload_stop(val.id);
-        }
-    }, signal);
+    callbackQueue
+        .consume(
+            async (val) => {
+                if (val.ev === "upload_chunk") {
+                    callbacks.upload_chunk(val.id, await val.data);
+                } else {
+                    callbacks.upload_stop(val.id);
+                }
+            },
+            { signal }
+        )
+        .catch((err) => {
+            if (!(err instanceof DOMException && err.name === "AbortError"))
+                console.error(err);
+        });
 
     return {
         async start(stream) {
@@ -117,6 +122,7 @@ export async function createRecordingHandler(
 
         stop() {
             mediaRecorder?.stop();
+            mediaRecorder = undefined;
         },
     };
 }

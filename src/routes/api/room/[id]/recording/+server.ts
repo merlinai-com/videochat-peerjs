@@ -2,10 +2,10 @@ import { compressionLevel, db, uploadDir } from "$lib/server";
 import { error } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import JSZip from "jszip";
-import type { Recording } from "backend/database";
+import type { Recording } from "backend/lib/database";
 import * as fs from "node:fs/promises";
 import { getUploadPath } from "backend/upload";
-import type { UUID } from "backend/types";
+import type { UUID } from "backend/lib/types";
 
 function getZipPath(
     recording: Recording,
@@ -66,7 +66,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
     return new Response(stream, {
         headers: {
             "Content-Type": "application/zip",
-            "Content-Disposition": `attachment; filename=${room.name} recordings.zip`,
+            "Content-Disposition": `attachment; filename=${room.group.name} recordings.zip`,
         },
     });
 };

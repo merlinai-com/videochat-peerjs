@@ -36,9 +36,7 @@ export class Subscriber<Id extends keyof E, E extends EventMap> {
 
     /** Remove an event listener */
     off<Ev extends keyof E[Id]>(ev: Ev, callback: E[Id][Ev]) {
-        if (this.listeners[ev]) {
-            this.listeners[ev].delete(callback);
-        }
+        if (this.listeners[ev]) this.listeners[ev].delete(callback);
     }
 
     _emit<Ev extends keyof E[Id]>(ev: Ev, ...message: Parameters<E[Id][Ev]>) {

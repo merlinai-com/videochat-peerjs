@@ -1,4 +1,5 @@
 import { sso } from "$lib/server/sso";
+import { Database } from "backend/lib/database";
 // import type { ServerLoad } from "@sveltejs/kit";
 import type { LayoutServerLoad } from "./$types";
 
@@ -11,6 +12,6 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
             //     new URLSearchParams({ redirect: url.pathname }),
             logout: sso.logoutURL(url).href,
         },
-        user: locals.user,
+        user: Database.jsonSafe(locals.user),
     };
 };

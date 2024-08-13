@@ -1,3 +1,4 @@
+/** A queue of values */
 export class Queue<T> {
     private array: (T | undefined)[] = [];
     private start = 0;
@@ -75,33 +76,31 @@ export class Queue<T> {
     }
 
     [Symbol.iterator](): Iterator<T> {
-        const queue = this;
-        return {
-            next(): IteratorResult<T> {
-                if (queue.length === 0) {
-                    return { done: true, value: undefined };
-                } else {
-                    return { done: false, value: queue.pop()! };
-                }
-            },
-        };
+        return (function* (queue: Queue<T>) {
+            while (queue.length > 0) {
+                yield queue.pop()!;
+            }
+        })(this);
     }
 }
 
+/** A queue that can read and write asynchronously */
 export class AsyncQueue<T> extends Queue<T> {
-    private popCallbacks: Queue<(val: T) => void> = new Queue();
+    private popQueue = new Queue<(val: T) => void>();
 
+    /** Push values synchronously */
     push(...vals: T[]) {
-        const claimed = vals.slice(0, this.popCallbacks.length);
-        const toPush = vals.slice(this.popCallbacks.length);
+        const claimed = vals.slice(0, this.popQueue.length);
+        const toPush = vals.slice(this.popQueue.length);
 
         for (const val of claimed) {
-            const callback = this.popCallbacks.pop()!;
+            const callback = this.popQueue.pop()!;
             callback(val);
         }
         Queue.prototype.push.apply(this, toPush);
     }
 
+    /** Pop a value */
     asyncPop(signal?: AbortSignal): Promise<T> {
         return new Promise((resolve, reject) => {
             if (signal?.aborted) reject(signal.reason);
@@ -114,27 +113,23 @@ export class AsyncQueue<T> extends Queue<T> {
                         reject(signal.reason);
                     };
                     signal.addEventListener("abort", onabort);
-                    this.popCallbacks.push((val) => {
+                    this.popQueue.push((val) => {
                         signal.removeEventListener("abort", onabort);
                         resolve(val);
                     });
                 } else {
-                    this.popCallbacks.push(resolve);
+                    this.popQueue.push(resolve);
                 }
             }
         });
     }
 
     [Symbol.asyncIterator](): AsyncIterator<T> {
-        const queue = this;
-        return {
-            async next(): Promise<IteratorResult<T>> {
-                return {
-                    done: false,
-                    value: await queue.asyncPop(),
-                };
-            },
-        };
+        return (async function* (queue: AsyncQueue<T>) {
+            while (true) {
+                yield await queue.asyncPop();
+            }
+        })(this);
     }
 
     private async _consume(
@@ -144,6 +139,7 @@ export class AsyncQueue<T> extends Queue<T> {
         while (true) {
             signal?.throwIfAborted();
             const val = await this.asyncPop(signal);
+            console.log("Popped:", val);
             await cb(val, signal);
         }
     }
@@ -158,7 +154,7 @@ export class AsyncQueue<T> extends Queue<T> {
      */
     async consume(
         cb: (val: T, signal?: AbortSignal) => void | Promise<void>,
-        opts: {
+        opts?: {
             /** The maximum number of workers to user. Default: 1 */
             workers?: number;
             /** The signal used to abort the operation */
@@ -166,8 +162,8 @@ export class AsyncQueue<T> extends Queue<T> {
         }
     ) {
         const tasks = [];
-        for (let i = 0; i < (opts.workers ?? 1); i++) {
-            tasks.push(this._consume(cb, opts.signal));
+        for (let i = 0; i < (opts?.workers ?? 1); i++) {
+            tasks.push(this._consume(cb, opts?.signal));
         }
         await Promise.all(tasks);
     }

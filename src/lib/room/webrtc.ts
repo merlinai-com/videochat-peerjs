@@ -1,4 +1,4 @@
-import type { UUID } from "backend/types";
+import type { UUID } from "backend/lib/types";
 
 interface PeerState {
     conn: RTCPeerConnection;
@@ -10,7 +10,7 @@ interface PeerState {
 
 export function createRtcHandler(
     iceServers: RTCIceServer[],
-    localStream: MediaStream,
+    localStream: MediaStream | undefined,
     callbacks: {
         signal: (arg: {
             to: UUID;
@@ -30,6 +30,7 @@ export function createRtcHandler(
         desc?: RTCSessionDescription | null;
         candidate?: RTCIceCandidate | null;
     }) => Promise<void>;
+    cleanup: () => void;
 } {
     const peers: Record<string, PeerState> = {};
     const rtcConfig: RTCConfiguration = { iceServers };
@@ -47,6 +48,8 @@ export function createRtcHandler(
 
     return {
         connect({ id, polite }) {
+            if (!localStream) return;
+
             const pc = (peers[id] ??= {
                 conn: new RTCPeerConnection(rtcConfig),
                 polite,
@@ -90,9 +93,7 @@ export function createRtcHandler(
         disconnect,
 
         disconnectAll() {
-            for (const id in peers) {
-                disconnect({ id: id as UUID });
-            }
+            for (const id in peers) disconnect({ id: id as UUID });
         },
 
         async signal({ from, desc, candidate }) {
@@ -131,6 +132,11 @@ export function createRtcHandler(
                     if (!pc.ignoreOffer) console.error(err);
                 }
             }
+        },
+
+        cleanup() {
+            for (const id in peers) disconnect({ id: id as UUID });
+            localStream = undefined;
         },
     };
 }

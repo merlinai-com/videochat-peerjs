@@ -1,5 +1,5 @@
 import { sveltekit } from "@sveltejs/kit/vite";
-import { defineConfig } from "vite";
+import { defineConfig, searchForWorkspaceRoot } from "vite";
 import { injectSocketIO } from "./backend";
 import * as dotenv from "dotenv";
 import * as expand from "dotenv-expand";
@@ -19,4 +19,9 @@ export default defineConfig({
             },
         },
     ],
+    server: {
+        fs: {
+            allow: [searchForWorkspaceRoot(process.cwd())],
+        },
+    },
 });

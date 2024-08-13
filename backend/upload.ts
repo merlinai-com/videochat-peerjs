@@ -1,6 +1,6 @@
-import type { Database } from "./database.js";
+import type { Database } from "./lib/database.js";
 import type { Publisher, Subscriber } from "./publisher.js";
-import type { PublisherEvents } from "./types.js";
+import type { PublisherEvents } from "./lib/types.js";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 

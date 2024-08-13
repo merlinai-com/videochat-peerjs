@@ -1,15 +1,10 @@
 <script lang="ts">
-    import { fetchJson } from "$lib";
-    import { io, type Socket } from "$lib/socket";
-    import type {
-        ClientToServerEvents,
-        ServerToClientEvents,
-        UUID,
-    } from "backend/types";
+    import Video from "$lib/components/Video.svelte";
+    import { createRecordingHandler, createRtcHandler } from "$lib/room";
+    import { room } from "$lib/socket";
+    import type { RoomSocket, UUID } from "backend/lib/types";
     import { onMount } from "svelte";
     import type { PageData } from "./$types";
-    import { createRecordingHandler, createRtcHandler } from "$lib/room";
-    import Video from "$lib/components/Video.svelte";
 
     export let data: PageData;
     let userName = data.user?.name ?? "";
@@ -19,29 +14,32 @@
     const state = { connected: false, recording: false };
     let videos: Record<UUID, MediaStream> = {};
 
+    const tap = (f1: () => void, f2: () => void) => () => {
+        f1();
+        f2();
+    };
+
     let handlers = {
         connect: () => {},
         startRecording: () => {},
         stopRecording: () => {},
+        cleanup: () => {
+            console.log("cleanup");
+        },
     };
 
-    async function init(socket: Socket) {
+    async function init(socket: RoomSocket) {
+        const ac = new AbortController();
+        handlers.cleanup = tap(handlers.cleanup, () => ac.abort());
+
         localStream = await navigator.mediaDevices.getUserMedia({
             video: true,
             audio: true,
         });
 
-        const { id } = await fetchJson<{ id: UUID }>(
-            `/api/room/${data.roomId}/join`,
-            {
-                method: "POST",
-            }
-        );
-
-        await socket.emitWithAck("set_id", { id });
-
-        // Uncomment the next line to log all messages
-        // socket.onAny(console.log);
+        handlers.cleanup = tap(handlers.cleanup, () => {
+            localStream?.getTracks().forEach((track) => track.stop());
+        });
 
         const rtcHandler = createRtcHandler(
             data.iceServers,
@@ -61,6 +59,8 @@
             state
         );
 
+        handlers.cleanup = tap(handlers.cleanup, rtcHandler.cleanup);
+
         socket.on("connect_to", rtcHandler.connect);
         socket.on("signal", rtcHandler.signal);
         socket.on("disconnect_from", rtcHandler.disconnect);
@@ -78,35 +78,40 @@
             }
         };
 
-        const recordingHandler = await createRecordingHandler({
-            async upload_start(arg) {
-                const res = await socket.emitWithAck("upload_start", arg);
-                if (res.error !== undefined) throw new Error(res.error);
-                return res;
+        const recordingHandler = await createRecordingHandler(
+            {
+                async upload_start(arg) {
+                    const res = await socket.emitWithAck("upload_start", arg);
+                    if (res.error !== undefined) throw new Error(res.error);
+                    return res;
+                },
+                upload_chunk(id, data) {
+                    socket.emit("upload_chunk", id, data);
+                },
+                upload_stop(id) {
+                    socket.emit("upload_stop", id);
+                },
+                start() {
+                    console.log("recording start");
+                    state.recording = true;
+                },
+                stop() {
+                    state.recording = false;
+                },
             },
-            upload_chunk(id, data) {
-                socket.emit("upload_chunk", id, data);
-            },
-            upload_stop(id) {
-                socket.emit("upload_stop", id);
-            },
-            start() {
-                console.log("recording start");
-                state.recording = true;
-            },
-            stop() {
-                state.recording = false;
-            },
-        });
+            ac.signal
+        );
 
         handlers.startRecording = () => recordingHandler.start(localStream!);
         handlers.stopRecording = recordingHandler.stop;
+        handlers.cleanup = tap(handlers.cleanup, recordingHandler.stop);
     }
 
     onMount(() => {
-        const socket = io();
+        const socket = room();
+        handlers.cleanup = tap(handlers.cleanup, () => socket.close());
         init(socket);
-        return () => socket.close();
+        return () => handlers.cleanup();
     });
 </script>
 

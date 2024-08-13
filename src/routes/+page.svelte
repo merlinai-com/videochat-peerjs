@@ -1,9 +1,10 @@
 <script lang="ts">
     import CreateRoom from "$lib/components/CreateRoom.svelte";
     import Messages from "./Messages.svelte";
-    import type { PageData } from "./$types";
+    import type { ActionData, PageData } from "./$types";
 
     export let data: PageData;
+    export let form: ActionData;
 </script>
 
 <nav>
@@ -15,6 +16,7 @@
     <div>
         Logged in as {data.user.name} ({data.user.email})
         <a href={data.authURLs.logout}>Log out</a>
+        {data.user.id}
     </div>
 {:else}
     <div>
@@ -24,4 +26,4 @@
 
 <CreateRoom user={data.user} />
 
-<Messages {data} />
+<Messages {data} {form} />

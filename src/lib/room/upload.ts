@@ -3,7 +3,7 @@ import type {
     ClientToServerEvents,
     ServerToClientEvents,
     UUID,
-} from "backend/types";
+} from "backend/lib/types";
 
 export class Uploader {
     socket: Socket<ServerToClientEvents, ClientToServerEvents>;

@@ -1,14 +1,6 @@
--- A user. This is safe to share with any users who have exchanged messages
--- since the user's email is required to send a message
 DEFINE TABLE user SCHEMAFULL TYPE NORMAL;
--- The user's email
-DEFINE FIELD email ON user TYPE string
-    ASSERT string::is::email($value);
--- Set to the room the user is currently connected to
-DEFINE FIELD current_room ON user TYPE option<record<room>>;
-DEFINE INDEX user__email ON user FIELDS email UNIQUE;
-DEFINE INDEX user__current_id ON user FIELDS current_id;
-
+DEFINE FIELD sso_id ON user TYPE option<string>;
+DEFINE INDEX user__sso_id ON user FIELDS sso_id UNIQUE;
 
 -- An attachment to a message
 DEFINE TABLE attachment SCHEMAFULL TYPE NORMAL;
@@ -43,8 +35,7 @@ DEFINE FIELD startTime ON recording TYPE datetime;
 
 -- A room - ie a temporary group of users who are all in a call together
 DEFINE TABLE room TYPE NORMAL;
-DEFINE FIELD name ON room TYPE string;
-DEFINE FIELD group ON room TYPE option<record<group>>;
+DEFINE FIELD group ON room TYPE record<group>;
 DEFINE FIELD recordings ON room TYPE set<record<recording>>;
 DEFINE FIELD owner ON room TYPE record<user>;
 
@@ -60,106 +51,98 @@ DEFINE FIELD name ON group TYPE option<string>
 -- The owner of this group - required if type is "group"
 DEFINE FIELD owner ON group TYPE option<record<user>>
     ASSERT $this.type != "group" OR $value != NONE;
+-- The users in this group - required if type is "p2p"
+-- For type "group", see in_group relation
+DEFINE FIELD users ON group TYPE option<array<record<user>>>
+    ASSERT $this.type != "p2p" OR ($value != NONE AND array::len($value) == 2);
 
 
 -- A relation that is present if a user is in a group
 DEFINE TABLE in_group TYPE RELATION FROM user TO group;
-DEFINE INDEX in_group_unique ON in FIELDS in, out UNIQUE;
+DEFINE INDEX in_group_unique ON in_group FIELDS in, out UNIQUE;
 
 
--- A table containing calculated data about a user
--- DEFINE TABLE user_extra SCHEMAFULL TYPE NORMAL AS
---     SELECT in AS user, array::distinct(out) AS groups FROM is_in GROUP BY in;
--- DEFINE INDEX user_extra__user ON user_extra FIELDS user UNIQUE;
-
+-- A relation that is present if a user is in a room
+DEFINE TABLE in_room TYPE RELATION FROM user TO room;
+DEFINE INDEX in_room_unique ON in_room FIELDS in, out UNIQUE;
 
 -- Useful functions
 
--- Get the id of a user by email address - throws "User not found" if no such user exists
-DEFINE FUNCTION fn::getUser($email: string) {
-    LET $user = (SELECT * FROM user WHERE email = $email);
-    IF !$user {
+DEFINE FUNCTION fn::createUser() {
+    RETURN array::first((CREATE user:uuid())).id;
+};
+
+DEFINE FUNCTION fn::getOrCreateSsoUser($sso_id: string, $create: bool) {
+    LET $user = (SELECT VALUE id FROM user WHERE sso_id = $sso_id);
+    RETURN IF $user {
+        RETURN array::first($user);
+    } ELSE IF $create {
+        RETURN array::first((CREATE user:uuid() SET sso_id = $sso_id)).id;
+    } ELSE {
+        RETURN NONE;
+    };
+};
+
+-- Throw an error if no user exists
+DEFINE FUNCTION fn::ensureUser($user: record<user>) {
+    IF $user.id == NONE {
         THROW "User not found";
     };
-    RETURN array::first($user).id;
 };
 
--- Get the id of a user by email address - creates a new user if no user exists yet
-DEFINE FUNCTION fn::getOrCreateUser($email: string) {
-    -- Get existing user
-    LET $user = (SELECT * FROM user WHERE email = $email);
-    -- If there is no such user, create one
-    LET $user = IF $user {
-        $user
-    } ELSE {
-        (CREATE user:uuid() SET email = $email);
-    };
-    -- Return the id
-    RETURN array::first($user).id;
-};
-
--- Get extra information about a user.
--- This will be NONE if the user is not in any groups or rooms
-DEFINE FUNCTION fn::getUserExtra($email: string) {
-    LET $user = fn::getUser($email);
-    RETURN array::first((SELECT * FROM user_extra WHERE user = $user));
-};
-
--- Send a message to a group
-DEFINE FUNCTION fn::sendGroupMessage(
-    $from: string,
-    $to: record<group>,
-    $content: string,
-    $attachment: option<record<attachment>>,
-){
-    RELATE (fn::getOrCreateUser($from))->message->$to SET content = $content, attachment = $attachment, sent_time = time::now();
+-- Get all groups a user is in
+DEFINE FUNCTION fn::getGroups($user: record<user>) {
+    fn::ensureUser($user);
+    RETURN (SELECT ->in_group.out as groups FROM ONLY $user FETCH groups[*]);
 };
 
 -- Get or create a p2p group
-DEFINE FUNCTION fn::getOrCreateP2PGroup($user1: string, $user2: string) {
-    LET $user1 = fn::getOrCreateUser($user1);
-    LET $user2 = fn::getOrCreateUser($user2);
-
+DEFINE FUNCTION fn::getOrCreateP2PGroup($user1: record<user>, $user2: record<user>) {
     LET $group = array::first((SELECT VALUE ->in_group->(group WHERE type = "p2p" && <-(in_group WHERE in == $user2)) FROM $user1));
     RETURN IF $group {
         RETURN array::first($group);
     } ELSE {
-        LET $group = array::first((CREATE group SET type = "p2p")).id;
+        LET $group = array::first((CREATE group:uuid() SET type = "p2p", users = [$user1, $user2])).id;
         RELATE [$user1, $user2]->in_group->$group;
         RETURN $group;
     };
 };
 
--- Send a message between 2 users
-DEFINE FUNCTION fn::sendP2PMessage(
-    $from: string,
-    $to: string,
-    $content: string,
-    $attachment: option<record<attachment>>,
-) {
-    RELATE (fn::getOrCreateUser($from))->message->(fn::getOrCreateUser($to)) SET content = $content, attachment = $attachment, sent_time = time::now();
+-- Send a message to a group
+DEFINE FUNCTION fn::sendMessage($from: record<user>, $to: record<group>, $content: string, $attachment: option<record<attachment>>) {
+    LET $message = array::first((RELATE $from->message->$to SET content = $content, attachment = $attachment, sent_time = time::now())).id;
+    RETURN (SELECT * FROM ONLY $message);
 };
 
-DEFINE FUNCTION fn::getMessages($group: record<group>, $limit: int, $start: int) {
-    RETURN (SELECT * FROM message WHERE out = $group ORDER BY sent_time LIMIT $limit START $start);
+-- Get messages from a group
+DEFINE FUNCTION fn::getMessages($group: record<group>) {
+    RETURN (SELECT * FROM message WHERE out = $group ORDER BY sent_time);
 };
 
-DEFINE FUNCTION fn::createRoomFrom($group: record<group>, $owner: string) {
-    LET $room = (CREATE room:uuid() SET name = $group.name, group = $group, recordings = []);
+-- Create a group
+DEFINE FUNCTION fn::createGroup($name: string, $owner: record<user>) {
+    LET $group = (CREATE group:uuid() SET type = "group", name = $name, owner = $owner);
+    RELATE $owner->in_group->$group;
+    RETURN array::first($group).id;
+};
+
+DEFINE FUNCTION fn::queryGroup($group: record<group>) {
+    RETURN (SELECT * FROM ONLY $group);
+};
+
+DEFINE FUNCTION fn::joinGroup($group: record<group>, $user: record<user>) {
+    RELATE $user->in_group->$group;
+};
+
+-- Create a temporary room from a group
+DEFINE FUNCTION fn::createRoom($group: record<group>, $owner: record<user>) {
+    LET $room = (CREATE room:uuid() SET group = $group, owner = $owner, recordings = []);
     RETURN array::first($room).id;
 };
 
-DEFINE FUNCTION fn::createRoom($name: string, $owner: string) {
-    LET $room = (CREATE room SET name = $name, owner = fn::getOrCreateUser($owner), users = [], recordings = []);
-    RETURN array::first($room).id;
-};
-
+-- Get information about a room
 DEFINE FUNCTION fn::queryRoom($id: record<room>) {
-    RETURN (SELECT * FROM ONLY $id FETCH owner, recordings[*]);
-};
-
-DEFINE FUNCTION fn::joinRoom($email: string, $id: string, $room: record<room>) {
-    UPDATE fn::getUser($email) SET current_id = <uuid>$id, current_room = $room;
+    RETURN (SELECT * FROM ONLY $id FETCH group, recordings[*]);
 };
 
 DEFINE FUNCTION fn::createRecording(
@@ -181,13 +164,15 @@ DEFINE FUNCTION fn::createRecording(
     RETURN $id;
 };
 
-DEFINE FUNCTION fn::isRecordingOwner($user: string, $recording: record<recording>) {
+DEFINE FUNCTION fn::isRecordingOwner($user: uuid, $recording: record<recording>) {
     LET $owner = (SELECT VALUE owner FROM ONLY $recording);
-    RETURN $owner == <uuid>$user;
+    RETURN $owner == $user;
 };
 
-DEFINE FUNCTION fn::finishRecording($user: string, $recording: record<recording>) {
-    IF fn::ownsRecording($user, $recording) {
+DEFINE FUNCTION fn::finishRecording($user: uuid, $recording: record<recording>) {
+    IF fn::isRecordingOwner($user, $recording) {
         UPDATE $recording UNSET owner;
+    } ELSE {
+        THROW "User" + $user + "is not the recording owner";
     }
 };

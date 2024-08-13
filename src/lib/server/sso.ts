@@ -1,18 +1,30 @@
 import { redirect, error } from "@sveltejs/kit";
 import {
     SSO,
-    type SSOResult,
+    type HTTPError,
+    type Ok,
+    type Redirect,
     type Cookies as SSOCookies,
-    type User,
 } from "sso";
 import type { Cookies as SvelteCookies } from "@sveltejs/kit";
 import { env } from "$env/dynamic/private";
 import { building } from "$app/environment";
 
+function get(e: Record<string, string | undefined>, v: string): string {
+    if (e[v] == undefined) throw new Error(`$${v} must be set`);
+    console.log(`$${v} = ${e[v]}`);
+    return e[v];
+}
+
 if (!building && !env.SSO_ORIGIN) throw new Error("Set $SSO_ORIGIN");
 export const sso = building
     ? (undefined as unknown as SSO)
-    : new SSO(env.SSO_ORIGIN);
+    : new SSO(env.SSO_ORIGIN, {
+          auth: {
+              id: get(env, "SSO_ID"),
+              key: get(env, "SSO_KEY"),
+          },
+      });
 
 export function makeCookies(cookies: SvelteCookies): SSOCookies {
     return {
@@ -28,7 +40,7 @@ export function makeCookies(cookies: SvelteCookies): SSOCookies {
     };
 }
 
-export function handle<T>(result: SSOResult<T>): T {
+export function handle<T>(result: Ok<T> | HTTPError | Redirect): T {
     switch (result.type) {
         case "redirect":
             throw redirect(result.status as any, result.url);
