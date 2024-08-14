@@ -43,10 +43,19 @@
         content: string;
         msgId: UUID;
     }) {
+        const timeoutStep = 1000;
+        const timeoutMax = 10000;
+        let timeout = 2000;
         while (true) {
-            const error = await socket?.timeout(2000).emitWithAck("send", arg);
+            const error = await socket
+                ?.timeout(timeout)
+                .emitWithAck("send", arg);
             if (error) {
-                console.error(error);
+                console.error(
+                    `Error when sending message with timeout: ${timeout}`,
+                    error
+                );
+                timeout = Math.max(timeout + timeoutStep, timeoutMax);
             } else {
                 return;
             }
