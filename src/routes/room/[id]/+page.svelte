@@ -5,6 +5,7 @@
     import type { RoomSocket, UUID } from "backend/lib/types";
     import { onMount } from "svelte";
     import type { PageData } from "./$types";
+    import Login from "$lib/components/Login.svelte";
 
     export let data: PageData;
     let userName = data.user?.name ?? "";
@@ -32,10 +33,15 @@
         const ac = new AbortController();
         handlers.cleanup = tap(handlers.cleanup, () => ac.abort());
 
-        localStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true,
-        });
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true,
+            });
+        } catch (err) {
+            console.error("Unable to get user media", err);
+            return;
+        }
 
         handlers.cleanup = tap(handlers.cleanup, () => {
             localStream?.getTracks().forEach((track) => track.stop());
@@ -68,10 +74,7 @@
         handlers.connect = () => {
             state.connected = !state.connected;
             if (state.connected) {
-                socket.emit("join_room", {
-                    id: data.roomId,
-                    name: userName,
-                });
+                socket.emit("join_room", data.roomId);
             } else {
                 socket.emit("leave_room");
                 rtcHandler.disconnectAll();
@@ -119,22 +122,7 @@
     <a href="/">Zap</a>
 </nav>
 
-{#if data.user}
-    <div>
-        Logged in as {data.user.name} ({data.user.email})
-        <a href={data.authURLs.logout}>Log out</a>
-    </div>
-{:else}
-    <div>
-        <button
-            role="link"
-            id="login-button"
-            data-login-url={data.authURLs.login}
-        >
-            Log in
-        </button>
-    </div>
-{/if}
+<Login {data} />
 
 <div>
     <p>Room: {data.roomName}</p>
@@ -191,7 +179,10 @@
         <button disabled>Save Recording</button>
         <button disabled>Delete Recording</button>
         <button disabled>Save to Server</button>
-        <a href={`/api/room/${data.roomId}/recording`} target="_blank">
+        <a
+            href={`/api/room/${data.roomId.replace("room:", "")}/recording`}
+            target="_blank"
+        >
             Download recording
         </a>
         <!-- <a class="button disabled" download="recording.webm">

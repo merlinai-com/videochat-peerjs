@@ -1,4 +1,4 @@
-import type { UUID } from "backend/lib/types";
+import type { SignalId, UUID } from "backend/lib/types";
 
 interface PeerState {
     conn: RTCPeerConnection;
@@ -13,7 +13,7 @@ export function createRtcHandler(
     localStream: MediaStream | undefined,
     callbacks: {
         signal: (arg: {
-            to: UUID;
+            to: SignalId;
             desc?: RTCSessionDescription | null;
             candidate?: RTCIceCandidate | null;
         }) => void;
@@ -22,11 +22,11 @@ export function createRtcHandler(
     },
     state: { connected: boolean }
 ): {
-    connect: (arg: { id: UUID; polite: boolean }) => void;
+    connect: (arg: { id: SignalId; polite: boolean }) => void;
     disconnect: (arg: { id: UUID }) => void;
     disconnectAll: () => void;
     signal: (arg: {
-        from: UUID;
+        from: SignalId;
         desc?: RTCSessionDescription | null;
         candidate?: RTCIceCandidate | null;
     }) => Promise<void>;

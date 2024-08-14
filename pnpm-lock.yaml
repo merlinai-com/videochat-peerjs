@@ -69,7 +69,7 @@ devDependencies:
     version: 4.7.5
   sso:
     specifier: github:merlinai-com/sso
-    version: git@github.com+merlinai-com/sso/a3691e31c1dc30ee4fa0ce06a42dca283cc4dfd8
+    version: git@github.com+merlinai-com/sso/537320e7f2d51665d7af909cf44ef47480549dea
   surrealdb.js:
     specifier: 1.0.0-beta.9
     version: 1.0.0-beta.9
@@ -3312,8 +3312,8 @@ packages:
     resolution: {integrity: sha512-XBx9AXhXktjUqnepgTiE5flcKIYWi/rme0Eaj+5Y0lftuGBq+jyRu/md4WnuxqgP1ubdpNCsYEYPxrzVHD8d6g==}
     dev: true
 
-  git@github.com+merlinai-com/sso/a3691e31c1dc30ee4fa0ce06a42dca283cc4dfd8:
-    resolution: {commit: a3691e31c1dc30ee4fa0ce06a42dca283cc4dfd8, repo: git@github.com:merlinai-com/sso.git, type: git}
+  git@github.com+merlinai-com/sso/537320e7f2d51665d7af909cf44ef47480549dea:
+    resolution: {commit: 537320e7f2d51665d7af909cf44ef47480549dea, repo: git@github.com:merlinai-com/sso.git, type: git}
     name: sso
     version: 0.0.1
     requiresBuild: true

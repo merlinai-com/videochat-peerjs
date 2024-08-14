@@ -1,7 +1,7 @@
-import { Cookies as SsoCookies, Cookie, User } from "sso";
-import { Database, UserId } from "./database.js";
+import type { Cookies as SvelteCookies } from "@sveltejs/kit";
+import { Cookie, type Cookies as SsoCookies, type User as SsoUser } from "sso";
 import { RecordId } from "surrealdb.js";
-import { Cookies as SvelteCookies } from "@sveltejs/kit";
+import { Database, type User as DbUser } from "./database.js";
 
 /** The max age for user ID cookie in days */
 const cookieMaxAgeDays = 30;
@@ -21,45 +21,74 @@ function adaptCookies(cookies: SvelteCookies | SsoCookies): SsoCookies {
     }
 }
 
-export async function getUserId(
+const cookieOptions = {
+    path: "/",
+    httpOnly: true,
+};
+
+export async function getUser(
     db: Database,
-    user: User | undefined | null,
-    cookies: SvelteCookies | SsoCookies,
-    create: true
-): Promise<UserId>;
-export async function getUserId(
+    opts: {
+        ssoUser?: SsoUser | null;
+        cookies: SvelteCookies | SsoCookies;
+        create: true;
+        secure?: boolean;
+    }
+): Promise<DbUser>;
+export async function getUser(
     db: Database,
-    user: User | undefined | null,
-    cookies?: SvelteCookies | SsoCookies,
-    create?: boolean
-): Promise<UserId | undefined>;
-export async function getUserId(
+    opts: {
+        ssoUser?: SsoUser | null;
+        cookies?: SvelteCookies | SsoCookies;
+        create?: boolean;
+        secure?: boolean;
+    }
+): Promise<DbUser | undefined>;
+export async function getUser(
     db: Database,
-    user: User | undefined | null,
-    cookies?: SvelteCookies | SsoCookies,
-    create: boolean = false
-): Promise<UserId | undefined> {
-    cookies = cookies && adaptCookies(cookies);
-    if (user) {
-        return await db.getSsoUser(user.id, create);
-    } else {
+    opts: {
+        ssoUser?: SsoUser | null;
+        cookies?: SvelteCookies | SsoCookies;
+        create?: boolean;
+        secure?: boolean;
+    }
+): Promise<DbUser | undefined> {
+    let { ssoUser, cookies } = opts;
+    const create = opts.create ?? false;
+    const secure = opts.secure ?? false;
+    if (ssoUser) {
+        return await db.getSsoUser(ssoUser.id, create);
+    } else if (cookies) {
+        cookies = adaptCookies(cookies);
         // TODO: sign keys
-        let user: UserId | undefined;
-        const fromCookie = cookies?.get("zap-user");
-        if (fromCookie) {
-            user = new RecordId("user", fromCookie);
-        } else if (create) {
-            user = await db.createUser();
-        }
-        if (user && cookies) {
+        let user: DbUser | undefined;
+        const fromCookie = cookies.get("zap-user");
+        if (fromCookie)
+            user = await db.surreal.select<DbUser>(
+                new RecordId("user", fromCookie)
+            );
+
+        if (!user && create) user = await db.createUser();
+
+        if (user) {
             cookies.set(
-                new Cookie("zap-user", user.id as string, {
-                    path: "/",
-                    httpOnly: true,
+                new Cookie("zap-user", user.id.id as string, {
+                    ...cookieOptions,
                     maxAge: cookieMaxAgeDays * 24 * 60 * 60,
+                    secure,
+                })
+            );
+        } else if (!user && fromCookie) {
+            cookies.set(
+                new Cookie("zap-user", "", {
+                    ...cookieOptions,
+                    maxAge: 0,
+                    secure,
                 })
             );
         }
         return user;
+    } else {
+        return;
     }
 }

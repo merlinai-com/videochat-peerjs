@@ -1,5 +1,8 @@
 DEFINE TABLE user SCHEMAFULL TYPE NORMAL;
+-- The SSO ID of this user
 DEFINE FIELD sso_id ON user TYPE option<string>;
+-- The user's nickname. This should be set if sso_id is NONE
+DEFINE FIELD name ON user TYPE option<string>;
 DEFINE INDEX user__sso_id ON user FIELDS sso_id UNIQUE;
 
 -- An attachment to a message
@@ -68,19 +71,35 @@ DEFINE INDEX in_room_unique ON in_room FIELDS in, out UNIQUE;
 
 -- Useful functions
 
-DEFINE FUNCTION fn::createUser() {
-    RETURN array::first((CREATE user:uuid())).id;
+-- Fetch some records
+DEFINE FUNCTION fn::fetchAll($ids: array<record>) {
+    RETURN (SELECT * FROM $ids);
 };
 
-DEFINE FUNCTION fn::getOrCreateSsoUser($sso_id: string, $create: bool) {
-    LET $user = (SELECT VALUE id FROM user WHERE sso_id = $sso_id);
+-- Check if a record exists
+DEFINE FUNCTION fn::exists($id: record) {
+    RETURN $id.id == $id;
+};
+
+-- Create a new user without an SSO id
+DEFINE FUNCTION fn::createUser() {
+    RETURN array::first((CREATE user:uuid()));
+};
+
+-- Get the user from an sso_id, optionally creating a new user if none exists
+DEFINE FUNCTION fn::getSsoUser($sso_id: string, $create: bool) {
+    LET $user = (SELECT * FROM user WHERE sso_id = $sso_id);
     RETURN IF $user {
         RETURN array::first($user);
     } ELSE IF $create {
-        RETURN array::first((CREATE user:uuid() SET sso_id = $sso_id)).id;
+        RETURN array::first((CREATE user:uuid() SET sso_id = $sso_id));
     } ELSE {
         RETURN NONE;
     };
+};
+
+DEFINE FUNCTION fn::setUserName($user: record<user>, $name: option<string>) {
+    UPDATE $user SET name = $name;
 };
 
 -- Throw an error if no user exists
@@ -121,9 +140,9 @@ DEFINE FUNCTION fn::getMessages($group: record<group>) {
 
 -- Create a group
 DEFINE FUNCTION fn::createGroup($name: string, $owner: record<user>) {
-    LET $group = (CREATE group:uuid() SET type = "group", name = $name, owner = $owner);
+    LET $group = (CREATE ONLY group:uuid() SET type = "group", name = $name, owner = $owner);
     RELATE $owner->in_group->$group;
-    RETURN array::first($group).id;
+    RETURN $group;
 };
 
 DEFINE FUNCTION fn::queryGroup($group: record<group>) {
@@ -147,7 +166,7 @@ DEFINE FUNCTION fn::queryRoom($id: record<room>) {
 
 DEFINE FUNCTION fn::createRecording(
     $user: option<record<user>>,
-    $owner: string,
+    $owner: uuid,
     $userName: option<string>,
     $mimeType: string,
     $room: record<room>,
@@ -156,7 +175,7 @@ DEFINE FUNCTION fn::createRecording(
         user = $user,
         userName = $userName,
         mimeType = $mimeType,
-        owner = <uuid>$owner,
+        owner = $owner,
         startTime = time::now()
     );
     LET $id = array::first($recording).id;
@@ -172,7 +191,5 @@ DEFINE FUNCTION fn::isRecordingOwner($user: uuid, $recording: record<recording>)
 DEFINE FUNCTION fn::finishRecording($user: uuid, $recording: record<recording>) {
     IF fn::isRecordingOwner($user, $recording) {
         UPDATE $recording UNSET owner;
-    } ELSE {
-        THROW "User" + $user + "is not the recording owner";
     }
 };

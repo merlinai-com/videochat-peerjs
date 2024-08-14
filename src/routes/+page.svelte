@@ -1,6 +1,8 @@
 <script lang="ts">
     import CreateRoom from "$lib/components/CreateRoom.svelte";
-    import Messages from "./Messages.svelte";
+    import Login from "$lib/components/Login.svelte";
+    import Messages from "$lib/components/Messages.svelte";
+    import PickName from "$lib/components/PickName.svelte";
     import type { ActionData, PageData } from "./$types";
 
     export let data: PageData;
@@ -11,19 +13,12 @@
     <a href="/">Zap</a>
 </nav>
 
-<!-- SSO information -->
+<Login {data} />
+
 {#if data.user}
-    <div>
-        Logged in as {data.user.name} ({data.user.email})
-        <a href={data.authURLs.logout}>Log out</a>
-        {data.user.id}
-    </div>
-{:else}
-    <div>
-        <a href={data.authURLs.login}>Log in</a>
-    </div>
+    <PickName required={!data.ssoUser} user={data.user} />
 {/if}
 
-<CreateRoom user={data.user} />
+<CreateRoom user={data.ssoUser} />
 
 <Messages {data} {form} />

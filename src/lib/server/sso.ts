@@ -12,7 +12,6 @@ import { building } from "$app/environment";
 
 function get(e: Record<string, string | undefined>, v: string): string {
     if (e[v] == undefined) throw new Error(`$${v} must be set`);
-    console.log(`$${v} = ${e[v]}`);
     return e[v];
 }
 

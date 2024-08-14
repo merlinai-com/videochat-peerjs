@@ -1,23 +1,16 @@
-import cookieParser from "cookie-parser";
 import * as fs from "node:fs/promises";
-import * as path from "node:path";
-import { Namespace, Server } from "socket.io";
-import msgpackParser from "socket.io-msgpack-parser";
-import { Cookies, SSO } from "sso";
+import { Namespace } from "socket.io";
 import { RecordId } from "surrealdb.js";
-import type { HttpServer } from "vite";
-import { Database, get, JsonSafe, RoomId } from "./lib/database.js";
-import { Publisher, type Listeners, type Subscriber } from "./publisher.js";
-import {
-    Email,
-    type RoomClientToServerEvents,
-    type InterServerEvents,
-    type PublisherEvents,
-    type RoomServerToClientEvents,
-    type SocketData,
-    type UUID,
+import { Database, type JsonSafe, type RoomId } from "./lib/database.js";
+import type {
+    SignalId,
+    InterServerEvents,
+    PublisherEvents,
+    RoomClientToServerEvents,
+    RoomServerToClientEvents,
+    SocketData,
 } from "./lib/types.js";
-import { createUploadSubscriber } from "./upload.js";
+import { Publisher, type Listeners, type Subscriber } from "./publisher.js";
 
 export function initRoomNamespace(
     ns: Namespace<
@@ -30,9 +23,6 @@ export function initRoomNamespace(
     db: Database
 ) {
     ns.on("connect", async (socket) => {
-        // socket.data.signalId = socket.data.user
-        //     ? Database.asUUID(socket.data.user.id)
-        //     : crypto.randomUUID();
         const signalId =
             socket.data.signalId || `signal:${crypto.randomUUID()}`;
         socket.data.signalId = signalId;
@@ -57,7 +47,7 @@ export function initRoomNamespace(
                 if (!socket.data.signalId) return;
                 if (socket.data.signalId !== peerId) {
                     socket.emit("connect_to", { id: peerId, polite: true });
-                    pub.publish(`signal:${peerId}`, "connect_to", {
+                    pub.publish(peerId, "connect_to", {
                         id: socket.data.signalId,
                         polite: false,
                     });
@@ -74,7 +64,7 @@ export function initRoomNamespace(
             },
         };
 
-        const userListeners: Listeners<`signal:${UUID}`, PublisherEvents> = {
+        const userListeners: Listeners<SignalId, PublisherEvents> = {
             signal(arg) {
                 socket.emit("signal", arg);
             },
@@ -89,10 +79,8 @@ export function initRoomNamespace(
             },
         };
 
-        const userSub = pub.subscribe(
-            `signal:${socket.data.signalId}`,
-            userListeners
-        );
+        const userSub = pub.subscribe(socket.data.signalId, userListeners);
+
         if (socket.data.roomId) {
             roomSub = pub.subscribe(
                 Database.jsonSafe(socket.data.roomId),
@@ -135,13 +123,13 @@ export function initRoomNamespace(
         socket.on("upload_start", async ({ mimeType }, callback) => {
             if (!socket.data.roomId)
                 return callback({ error: "join_room has not been called" });
-            const id = await db.createRecording(
-                socket.data.user?.id,
-                signalId,
-                socket.data.userName,
+            const id = await db.createRecording({
+                user: socket.data.userId,
+                owner: signalId,
+                userName: socket.data.userName,
                 mimeType,
-                socket.data.roomId
-            );
+                room: socket.data.roomId,
+            });
             callback({ id: Database.jsonSafe(id) });
             pub.publish("upload", "start", signalId, id, mimeType);
         });

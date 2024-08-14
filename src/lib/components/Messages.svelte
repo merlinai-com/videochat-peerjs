@@ -4,34 +4,30 @@
 
 <script lang="ts">
     import { enhance } from "$app/forms";
-    import { type UUID } from "backend/lib/types";
-    import { onMount } from "svelte";
-    import type { ActionData, PageData } from "./$types";
-    import Message from "../lib/components/Message.svelte";
     import { getOtherUser } from "$lib";
+    import type { Group, JsonSafe } from "backend/lib/database";
+    import { onMount } from "svelte";
+    import type { ActionData, PageData } from "../../routes/$types";
+    import Message from "./Message.svelte";
 
     export let data: PageData;
     export let form: ActionData;
 
-    $: groupById = Object.fromEntries(
-        (data.groups ?? []).map((g) => [g.id, g])
-    );
-
-    let selectedGroup: UUID | undefined;
+    let selectedGroup: JsonSafe<Group> | undefined;
 
     $: if (
         form?.action === "create_p2p_group" ||
         form?.action === "create_group"
     ) {
-        selectedGroup = form.id;
+        selectedGroup = form.group;
     }
 
     onMount(() => {});
 </script>
 
-{#if data.user}
-    <div>
-        <h1>Messages</h1>
+<div>
+    <h1>Messages</h1>
+    {#if data.ssoUser}
         <form action="/?/create_group" method="POST" use:enhance>
             <h2>Create group</h2>
             <label for="create-group-name">Name:</label>
@@ -54,23 +50,25 @@
             />
             <button type="submit">Message</button>
         </form>
-        <h2>Groups</h2>
-        {#if data.groups}
-            <ul>
-                {#each data.groups as group}
-                    <li>
-                        <button on:click={() => (selectedGroup = group.id)}>
-                            {#if group.type === "p2p"}
-                                {getOtherUser(group.users, data.user.id)}
-                            {:else}
-                                {group.name}
-                            {/if}
-                        </button>
-                    </li>
-                {/each}
-            </ul>
-        {/if}
-    </div>
+    {:else}
+        Log in to create create a group
+    {/if}
+    <h2>Groups</h2>
+    {#if data.user && data.groups}
+        <ul>
+            {#each data.groups as group}
+                <li>
+                    <button on:click={() => (selectedGroup = group)}>
+                        {#if group.type === "p2p"}
+                            {getOtherUser(group.users, data.user.id)}
+                        {:else}
+                            {group.name}
+                        {/if}
+                    </button>
+                </li>
+            {/each}
+        </ul>
+    {/if}
+</div>
 
-    <Message {selectedGroup} {groupById} />
-{/if}
+<Message user={data.user} {selectedGroup} />

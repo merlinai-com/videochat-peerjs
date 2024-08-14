@@ -10,28 +10,32 @@
         GroupId,
         JsonSafe,
         Message,
+        User,
         UserId,
     } from "backend/lib/database";
     import type { MessageSocket, UUID } from "backend/lib/types";
     import { onMount } from "svelte";
 
-    export let selectedGroup: UUID | undefined;
-    export let groupById: Record<UUID, JsonSafe<Group>>;
+    /** The current user's ID */
+    export let user: JsonSafe<User> | undefined;
+
+    export let selectedGroup: JsonSafe<Group> | undefined;
 
     let socket: MessageSocket | undefined;
 
-    $: group = selectedGroup && groupById[selectedGroup];
-    $: title = group && (group.type == "group" ? group.name : "P2P");
-    // : getOtherUser(group.users, data.user?.email).email);
+    $: title =
+        selectedGroup &&
+        (selectedGroup.type == "group" ? selectedGroup.name : "P2P");
+    // : getOtherUser(selectedGroup.users, data.user?.email).email);
 
-    let users: Record<JsonSafe<UserId>, string> = {};
+    let users: Record<JsonSafe<UserId>, string | undefined> = {};
     let messages: JsonSafe<Message>[] = [];
     let messageContent = "";
 
-    $: socket && group && subscribe(socket, group);
-    function subscribe(socket: MessageSocket, group: JsonSafe<Group>) {
+    $: socket && selectedGroup && subscribe(socket, selectedGroup);
+    function subscribe(socket: MessageSocket, selectedGroup: JsonSafe<Group>) {
         messages = [];
-        socket.emit("subscribe", group.id);
+        socket.emit("subscribe", selectedGroup.id);
     }
 
     async function sendMessage(arg: {
@@ -64,17 +68,17 @@
         socket = message();
 
         socket.on("messages", (ms) => {
-            if (!group) return;
+            if (!selectedGroup) return;
 
             for (const m of ms) {
                 addMessage(m);
-                requestUsers();
             }
+            requestUsers();
         });
 
         socket.on("users", (us) => {
             for (const u of us) {
-                users[`user:${u.id}`] = u.name;
+                users[u.id] = u.name;
             }
         });
 
@@ -82,27 +86,31 @@
     });
 </script>
 
-{#if group}
+{#if selectedGroup}
     <h2>{title}</h2>
     <button
         on:click={() =>
             window.navigator.clipboard
                 .writeText(
                     new URL(
-                        `/group/${group.id.replace("group:", "")}`,
+                        `/selectedGroup/${selectedGroup.id.replace("group:", "")}`,
                         window.location.origin
                     ).href
                 )
                 .catch(console.error)}>Copy invite link</button
     >
     <form action="/?/call_group" method="POST" use:enhance>
-        <input name="group" value={group.id} hidden readonly />
+        <input name="group" value={selectedGroup.id} hidden readonly />
         <button>Call</button>
     </form>
     <ul>
         {#each messages as message}
             <li>
-                <b>{message.in}:</b>
+                <b
+                    >{message.in === user?.id
+                        ? "Me"
+                        : users[message.in] ?? message.in}:</b
+                >
                 <span>{message.content}</span>
             </li>
         {/each}
@@ -110,7 +118,7 @@
     <form
         on:submit|preventDefault={() => {
             sendMessage({
-                groupId: group.id,
+                groupId: selectedGroup.id,
                 content: messageContent,
                 msgId: crypto.randomUUID(),
             });

@@ -139,7 +139,6 @@ export class AsyncQueue<T> extends Queue<T> {
         while (true) {
             signal?.throwIfAborted();
             const val = await this.asyncPop(signal);
-            console.log("Popped:", val);
             await cb(val, signal);
         }
     }

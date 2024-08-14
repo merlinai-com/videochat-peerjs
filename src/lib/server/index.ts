@@ -4,7 +4,7 @@ import { Database } from "backend/lib/database";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-export { getUserId } from "backend/lib/login";
+export { getUser as getUserId } from "backend/lib/login";
 
 export const db = await Database.init(env, building);
 

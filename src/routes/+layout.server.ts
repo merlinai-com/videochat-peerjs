@@ -12,6 +12,7 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
             //     new URLSearchParams({ redirect: url.pathname }),
             logout: sso.logoutURL(url).href,
         },
+        ssoUser: locals.ssoUser,
         user: Database.jsonSafe(locals.user),
     };
 };

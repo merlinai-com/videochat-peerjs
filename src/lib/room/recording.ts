@@ -1,10 +1,10 @@
-import type { UUID } from "backend/lib/types";
+import type { JsonSafe, RecordingId } from "backend/lib/database";
 import { AsyncQueue } from "backend/lib/queue";
 
 export type Recording = {
     blob: Blob;
     startTime: Date;
-    id: UUID;
+    id: JsonSafe<RecordingId>;
 };
 
 const videoStore = "video";
@@ -36,9 +36,11 @@ function saveRecording(db: IDBDatabase, recording: Recording): Promise<void> {
 
 export async function createRecordingHandler(
     callbacks: {
-        upload_start: (arg: { mimeType: string }) => Promise<{ id: UUID }>;
-        upload_chunk: (id: UUID, data: ArrayBuffer) => void;
-        upload_stop: (id: UUID) => void;
+        upload_start: (arg: {
+            mimeType: string;
+        }) => Promise<{ id: JsonSafe<RecordingId> }>;
+        upload_chunk: (id: JsonSafe<RecordingId>, data: ArrayBuffer) => void;
+        upload_stop: (id: JsonSafe<RecordingId>) => void;
         start: () => void;
         stop: () => void;
     },
@@ -60,8 +62,12 @@ export async function createRecordingHandler(
     let mediaRecorder: MediaRecorder | undefined;
 
     const callbackQueue = new AsyncQueue<
-        | { ev: "upload_chunk"; id: UUID; data: Promise<ArrayBuffer> }
-        | { ev: "upload_stop"; id: UUID }
+        | {
+              ev: "upload_chunk";
+              id: JsonSafe<RecordingId>;
+              data: Promise<ArrayBuffer>;
+          }
+        | { ev: "upload_stop"; id: JsonSafe<RecordingId> }
     >();
     callbackQueue
         .consume(

@@ -2,7 +2,7 @@ import { compressionLevel, db, uploadDir } from "$lib/server";
 import { error } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import JSZip from "jszip";
-import type { Recording } from "backend/lib/database";
+import { Database, type Recording } from "backend/lib/database";
 import * as fs from "node:fs/promises";
 import { getUploadPath } from "backend/upload";
 import type { UUID } from "backend/lib/types";
@@ -26,7 +26,7 @@ function getZipPath(
 export const GET: RequestHandler = async ({ params, locals }) => {
     // TODO: check the user has permission to download this recording
 
-    const room = await db.queryRoom(params.id);
+    const room = await db.queryRoom(Database.parseRecord("room", params.id));
     if (!room) throw error(404, "Room not found");
     if (room.recordings.length === 0) throw error(404, "No recordings found");
 
@@ -35,7 +35,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
     room.recordings.forEach((recording, index) => {
         zip.file(
             getZipPath(recording, { index: index + 1, digits }),
-            fs.readFile(getUploadPath(uploadDir, recording.id.id as UUID))
+            fs.readFile(getUploadPath(uploadDir, recording.id.id as string))
         );
     });
 

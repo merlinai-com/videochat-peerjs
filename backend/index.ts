@@ -6,20 +6,20 @@ import msgpackParser from "socket.io-msgpack-parser";
 import { SSO } from "sso";
 import type { HttpServer } from "vite";
 import { Database, get } from "./lib/database.js";
-import {
+import type {
     MessageClientToServerEvents,
     MessageServerToClientEvents,
     RoomSocketData,
-    type InterServerEvents,
-    type PublisherEvents,
-    type RoomClientToServerEvents,
-    type RoomServerToClientEvents,
-    type SocketData,
+    InterServerEvents,
+    PublisherEvents,
+    RoomClientToServerEvents,
+    RoomServerToClientEvents,
+    SocketData,
 } from "./lib/types.js";
 import { initMessageNamespace } from "./message.js";
 import { Publisher } from "./publisher.js";
 import { initRoomNamespace } from "./room.js";
-import { ssoMiddleware } from "./sso.js";
+import { loginMiddleware } from "./sso.js";
 import { createUploadSubscriber } from "./upload.js";
 
 export async function injectSocketIO(
@@ -60,7 +60,7 @@ export async function injectSocketIO(
         SocketData
     > = socketIO.of("/room");
 
-    roomNs.use(ssoMiddleware(sso, db));
+    roomNs.use(loginMiddleware(sso, db));
     initRoomNamespace(roomNs, pub, db);
 
     const messageNs: Namespace<
@@ -70,6 +70,35 @@ export async function injectSocketIO(
         RoomSocketData
     > = socketIO.of("/message");
 
-    messageNs.use(ssoMiddleware(sso, db));
-    initMessageNamespace(messageNs, pub, db);
+    messageNs.use(loginMiddleware(sso, db));
+    initMessageNamespace(messageNs, pub, db, sso);
+
+    // Update other users when a user changes their nickname
+    db.subscribe("user", async (act, user) => {
+        if (act === "UPDATE") {
+            let name = user.name;
+
+            if (user.sso_id && !name) {
+                const users = await sso.getUsers({ ids: [user.sso_id] });
+                if (users.length !== 1) {
+                    console.error(
+                        "Expected a single user from sso.getUsers. Got",
+                        users
+                    );
+                    return;
+                }
+                name = users[0].name;
+            }
+
+            const groups = await db.getGroups(user.id);
+            for (const group of groups ?? []) {
+                pub.publish(
+                    Database.jsonSafe(group.id),
+                    "user",
+                    Database.jsonSafe(user.id),
+                    name
+                );
+            }
+        }
+    });
 }

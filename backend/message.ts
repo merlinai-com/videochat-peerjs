@@ -1,16 +1,16 @@
 import { Namespace } from "socket.io";
+import { SSO } from "sso";
 import { RecordId } from "surrealdb.js";
-import { Database, GroupId, JsonSafe } from "./lib/database.js";
-import {
+import { Database, type GroupId, type JsonSafe } from "./lib/database.js";
+import type {
     InterServerEvents,
     MessageClientToServerEvents,
     MessageServerToClientEvents,
     PublisherEvents,
     RoomSocketData,
-    UUID,
 } from "./lib/types.js";
-import { Listeners, Publisher, Subscriber } from "./publisher.js";
-import { SSO } from "sso";
+import { select } from "./lib/utils.js";
+import { type Listeners, Publisher, Subscriber } from "./publisher.js";
 
 export function initMessageNamespace(
     ns: Namespace<
@@ -30,6 +30,10 @@ export function initMessageNamespace(
         const groupListeners: Listeners<JsonSafe<GroupId>, PublisherEvents> = {
             message(message) {
                 socket.emit("messages", [message]);
+            },
+
+            user(id, name) {
+                socket.emit("users", [{ id, name }]);
             },
         };
 
@@ -56,10 +60,10 @@ export function initMessageNamespace(
             // We have already seen this message
             if (seenMessages.has(arg.msgId)) return;
 
-            if (!socket.data.user) return;
+            if (!socket.data.userId) return;
 
             const m = await db.sendMessage(
-                socket.data.user.id,
+                socket.data.userId,
                 new RecordId("group", arg.groupId),
                 arg.content
             );
@@ -74,9 +78,35 @@ export function initMessageNamespace(
         });
 
         socket.on("request_users", async (userIds) => {
-            // const
-            // const users = await sso.getUsers({ ids: userIds });
+            const toSend = [];
+            const users = await db.fetchAll(
+                userIds.map((id) => Database.parseRecord("user", id))
+            );
 
+            // Users with a nickname
+            toSend.push(...Database.jsonSafe(select(users, "name")));
+
+            /** Users with sso_id without name */
+            const ssoNoNick = select(
+                users.filter((user) => !user.name),
+                "sso_id"
+            );
+            const userIdBySsoId = Object.fromEntries(
+                ssoNoNick.map(({ sso_id, id }) => [sso_id, id])
+            );
+            const ssoUsers = await sso.getUsers({
+                ids: ssoNoNick.map(({ sso_id }) => sso_id),
+            });
+
+            const ssoWithName = select(ssoUsers, "name").map(
+                ({ id, name }) => ({
+                    id: userIdBySsoId[id],
+                    name,
+                })
+            );
+            toSend.push(...Database.jsonSafe(ssoWithName));
+
+            if (toSend.length > 0) socket.emit("users", toSend);
         });
     });
 }
