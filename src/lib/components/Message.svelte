@@ -47,17 +47,14 @@
         const timeoutMax = 10000;
         let timeout = 2000;
         while (true) {
-            const error = await socket
-                ?.timeout(timeout)
-                .emitWithAck("send", arg);
-            if (error) {
+            try {
+                await socket?.timeout(timeout).emitWithAck("send", arg);
+            } catch (error) {
                 console.error(
                     `Error when sending message with timeout: ${timeout}`,
                     error
                 );
                 timeout = Math.max(timeout + timeoutStep, timeoutMax);
-            } else {
-                return;
             }
         }
     }
