@@ -100,7 +100,7 @@
             window.navigator.clipboard
                 .writeText(
                     new URL(
-                        `/selectedGroup/${selectedGroup.id.replace("group:", "")}`,
+                        `/group/${selectedGroup.id.replace("group:", "")}`,
                         window.location.origin
                     ).href
                 )

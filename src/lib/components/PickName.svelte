@@ -9,7 +9,7 @@
 <form action="/?/set_name" method="POST" use:enhance>
     <label for="nickname">Name:</label>
     <input id="nickname" name="name" {required} value={user.name ?? ""} />
-    <button type="submit">Update</button>
+    <button type="submit">Submit</button>
     {#if !required}
         <button type="submit" formaction="/?/clear_name">Clear</button>
     {/if}

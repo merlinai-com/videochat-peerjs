@@ -1,14 +1,12 @@
 <script lang="ts">
-    import Video from "$lib/components/Video.svelte";
+    import VideoGrid from "$lib/components/VideoGrid.svelte";
     import { createRecordingHandler, createRtcHandler } from "$lib/room";
     import { room } from "$lib/socket";
     import type { RoomSocket, UUID } from "backend/lib/types";
     import { onMount } from "svelte";
     import type { PageData } from "./$types";
-    import Login from "$lib/components/Login.svelte";
 
     export let data: PageData;
-    let userName = data.user?.name ?? "";
 
     let localStream: MediaStream | undefined;
 
@@ -118,75 +116,70 @@
     });
 </script>
 
-<nav>
-    <a href="/">Zap</a>
-</nav>
+<div class="root overflow-hidden grid">
+    <div class="flex-row p-3 gap-3">
+        <nav>
+            <a href="/">Zap</a>
+        </nav>
 
-<Login {data} />
-
-<div>
-    <p>Room: {data.roomName}</p>
-    <button
-        on:click={() => navigator.clipboard.writeText(window.location.href)}
-    >
-        Copy URL
-    </button>
-</div>
-
-<div>
-    <form on:submit|preventDefault={handlers.connect}>
-        {#if !data.user}
-            <label for="user-name">Name:</label>
-            <input
-                id="user-name"
-                required
-                placeholder="Name"
-                bind:value={userName}
-            />
-        {/if}
-        <button type="submit">
-            {#if state.connected}
-                Disconnect from call
-            {:else}
-                Connect to call
-            {/if}
-        </button>
-    </form>
-</div>
-
-<div id="video" class="hidden">
-    <div>
-        {#each Object.entries(videos) as [id, stream] (id)}
-            <Video {stream} />
-        {/each}
+        <div class="flex-row gap-3">
+            <p>Room: {data.roomName}</p>
+            <button
+                on:click={() =>
+                    navigator.clipboard.writeText(window.location.href)}
+            >
+                Copy URL
+            </button>
+        </div>
     </div>
-    {#if localStream}
-        <Video stream={localStream} muted />
-    {/if}
-    {#if data.isOwner}
-        <button
-            disabled={state.recording || !state.connected}
-            on:click={handlers.startRecording}
-        >
-            Start Recording
-        </button>
-        <button
-            disabled={!state.recording || !state.connected}
-            on:click={handlers.stopRecording}
-        >
-            Stop Recording
-        </button>
-        <button disabled>Save Recording</button>
-        <button disabled>Delete Recording</button>
-        <button disabled>Save to Server</button>
-        <a
-            href={`/api/room/${data.roomId.replace("room:", "")}/recording`}
-            target="_blank"
-        >
-            Download recording
-        </a>
-        <!-- <a class="button disabled" download="recording.webm">
-        Download Recording
+
+    <div class="min-h-0">
+        <VideoGrid peers={videos} self={localStream} />
+    </div>
+
+    <div class="flex-row p-3 gap-3">
+        <form on:submit|preventDefault={handlers.connect}>
+            <button type="submit">
+                {#if state.connected}
+                    Disconnect from call
+                {:else}
+                    Connect to call
+                {/if}
+            </button>
+        </form>
+        {#if data.isOwner}
+            <button
+                disabled={state.recording || !state.connected}
+                on:click={handlers.startRecording}
+            >
+                Start Recording
+            </button>
+            <button
+                disabled={!state.recording || !state.connected}
+                on:click={handlers.stopRecording}
+            >
+                Stop Recording
+            </button>
+            <button disabled>Save Recording</button>
+            <button disabled>Delete Recording</button>
+            <button disabled>Save to Server</button>
+            <a
+                href={`/api/room/${data.roomId.replace("room:", "")}/recording`}
+                target="_blank"
+            >
+                Download recording
+            </a>
+            <!-- <a class="button disabled" download="recording.webm">
+    Download Recording
     </a> -->
-    {/if}
+        {/if}
+    </div>
 </div>
+
+<style>
+    .root {
+        width: 100vw;
+        height: 100vh;
+        grid-template-rows: max-content 1fr max-content;
+    }
+</style>
