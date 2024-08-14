@@ -1,5 +1,6 @@
 import type { User } from "sso";
 import type {
+    User as DbUser,
     GroupId,
     JsonSafe,
     Message,
@@ -86,17 +87,15 @@ export interface MessageClientToServerEvents {
     /** Send a message */
     send: (
         arg: { groupId: JsonSafe<GroupId>; content: string; msgId: UUID },
-        ack: () => void
+        ack: (error?: string) => void
     ) => void;
 }
 
 export interface InterServerEvents {}
 
 export interface SocketData {
-    /** Information about the user */
     ssoUser?: User;
-    /** The user ID */
-    userId?: UserId;
+    user?: DbUser;
 
     /** A UUID assigned to this user for the sake of signalling */
     signalId?: SignalId;

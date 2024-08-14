@@ -58,23 +58,34 @@ export function initMessageNamespace(
 
         socket.on("send", async (arg, callback) => {
             // We have already seen this message
-            if (seenMessages.has(arg.msgId)) return;
+            if (seenMessages.has(arg.msgId)) {
+                callback();
+                return;
+            }
 
-            if (!socket.data.userId) return;
+            if (!socket.data.user) {
+                callback("Not logged in");
+                return;
+            }
 
-            const m = await db.sendMessage(
-                socket.data.userId,
-                new RecordId("group", arg.groupId),
-                arg.content
-            );
+            try {
+                const m = await db.sendMessage(
+                    socket.data.user.id,
+                    new RecordId("group", arg.groupId),
+                    arg.content
+                );
 
-            pub.publish(
-                Database.jsonSafe(new RecordId("group", arg.groupId)),
-                "message",
-                Database.jsonSafe(m)
-            );
+                pub.publish(
+                    Database.jsonSafe(new RecordId("group", arg.groupId)),
+                    "message",
+                    Database.jsonSafe(m)
+                );
 
-            callback();
+                callback();
+            } catch (err) {
+                console.debug(err);
+                callback("Internal Error");
+            }
         });
 
         socket.on("request_users", async (userIds) => {
