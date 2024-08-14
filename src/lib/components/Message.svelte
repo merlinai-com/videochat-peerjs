@@ -49,6 +49,7 @@
         while (true) {
             try {
                 await socket?.timeout(timeout).emitWithAck("send", arg);
+                return;
             } catch (error) {
                 console.error(
                     `Error when sending message with timeout: ${timeout}`,
