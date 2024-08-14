@@ -54,7 +54,7 @@
                     `Error when sending message with timeout: ${timeout}`,
                     error
                 );
-                timeout = Math.max(timeout + timeoutStep, timeoutMax);
+                timeout = Math.min(timeout + timeoutStep, timeoutMax);
             }
         }
     }
