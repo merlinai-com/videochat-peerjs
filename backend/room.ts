@@ -124,7 +124,7 @@ export function initRoomNamespace(
             if (!socket.data.roomId)
                 return callback({ error: "join_room has not been called" });
             const id = await db.createRecording({
-                user: socket.data.userId,
+                user: socket.data.user?.id,
                 owner: signalId,
                 userName: socket.data.userName,
                 mimeType,
