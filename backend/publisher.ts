@@ -5,32 +5,28 @@ interface ReservedEvents {
     unsubscribe: () => void;
 }
 
-interface EventMap {
-    [id: string | symbol | number]: any;
-}
+type EventMap<E> = {
+    [key in keyof E]: any;
+};
 
-export type Listeners<Id extends keyof E, E extends EventMap> = {
-    [ev in keyof E[Id]]?: E[Id][ev];
-} & {
-    [ev in keyof ReservedEvents]?: ReservedEvents[ev];
+export type Listeners<Id extends keyof E, E extends EventMap<E>> = {
+    [ev in keyof (E[Id] & ReservedEvents)]?: ev extends keyof ReservedEvents
+        ? ReservedEvents[ev]
+        : E[Id][ev];
 };
 
 export class Subscriber<
     Id extends keyof E,
-    E extends EventMap
-> extends EventEmitter<
-    {
-        [K in keyof E[Id]]: Parameters<E[Id][K]>;
-    } & { [K in keyof ReservedEvents]: Parameters<ReservedEvents[K]> }
-> {
+    E extends EventMap<E>
+> extends EventEmitter<{
+    [ev in keyof E[Id] & ReservedEvents]: Parameters<
+        ev extends keyof ReservedEvents ? ReservedEvents[ev] : E[Id][ev]
+    >;
+}> {
     pub: Publisher<E>;
     id: Id;
 
-    constructor(
-        pub: Publisher<E>,
-        id: Id,
-        listeners?: Listeners<Id, E & ReservedEvents>
-    ) {
+    constructor(pub: Publisher<E>, id: Id, listeners?: Listeners<Id, E>) {
         super({ captureRejections: true });
         this.pub = pub;
         this.id = id;
@@ -63,7 +59,7 @@ export class Subscriber<
     }
 }
 
-export class Publisher<E extends EventMap> {
+export class Publisher<E extends EventMap<E>> {
     private subs: {
         [id in keyof E]?: Set<Subscriber<id, E>>;
     };
@@ -80,7 +76,7 @@ export class Publisher<E extends EventMap> {
     /** Subscribe to a topic */
     subscribe<Id extends keyof E>(
         id: Id,
-        listeners?: Listeners<Id, E & ReservedEvents>
+        listeners?: Listeners<Id, E>
     ): Subscriber<Id, E> {
         const sub = new Subscriber(this, id, listeners);
         this._getSubsFor(id).add(sub);
