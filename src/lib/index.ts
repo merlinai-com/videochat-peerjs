@@ -1,6 +1,6 @@
 // place files you want to import through the `$lib` alias in this folder.
 
-import type { Email } from "backend/lib/types";
+import { browser } from "$app/environment";
 
 export async function fetchJson<T>(
     url: string | URL,
@@ -27,4 +27,8 @@ export function getOtherUser<U extends string | { id: string }>(
     const other = us.find((u) => (typeof u === "string" ? u : u.id) !== id);
     if (!other) throw new Error("Internal Error: Unable to find other user");
     return other;
+}
+
+export function debug(): boolean {
+    return browser && !!localStorage.getItem("debug");
 }

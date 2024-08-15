@@ -8,6 +8,7 @@
     import type { RoomSocket } from "backend/lib/types";
     import { onMount } from "svelte";
     import type { PageData } from "./$types";
+    import { debug } from "$lib";
 
     export let data: PageData;
 
@@ -33,7 +34,7 @@
         startRecording: () => {},
         stopRecording: () => {},
         cleanup: () => {
-            if (localStorage.get("debug")) console.log("cleanup");
+            if (debug()) console.log("cleanup");
         },
         toggleMedia: (_type: MediaType) => {},
     };

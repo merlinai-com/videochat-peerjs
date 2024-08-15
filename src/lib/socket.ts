@@ -1,10 +1,10 @@
+import { debug } from "$lib";
+import type { MessageSocket, RoomSocket } from "backend/lib/types";
 import { io, type Socket } from "socket.io-client";
-import type { RoomSocket, MessageSocket } from "backend/lib/types";
 import msgpackParser from "socket.io-msgpack-parser";
-import { browser } from "$app/environment";
 
 function initLogging(socket: Socket) {
-    if (browser && localStorage.getItem("debug")) {
+    if (debug()) {
         socket.onAny((...args) => console.debug("recv", args));
         socket.onAnyOutgoing((...args) => console.debug("emit", args));
     }
