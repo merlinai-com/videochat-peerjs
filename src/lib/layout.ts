@@ -9,7 +9,7 @@ function sum(xs: number[]): number {
  */
 export function findBestLayout(
     client: { width: number; height: number },
-    videos: { aspectRatio: number }[]
+    videos: { aspectRatio?: number }[]
 ): { rows: number; cols: number } {
     const count = videos.length;
     const clientAspectRatio = client.width / client.height;
@@ -24,7 +24,11 @@ export function findBestLayout(
 
         /** The score */
         let score = sum(
-            videos.map((video) => Math.abs(video.aspectRatio - aspectRatio))
+            videos.map((video) =>
+                video.aspectRatio != undefined
+                    ? Math.abs(video.aspectRatio - aspectRatio)
+                    : 0
+            )
         );
 
         const empty = rows * cols - count;

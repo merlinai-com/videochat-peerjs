@@ -1,55 +1,58 @@
 <script lang="ts">
     import { findBestLayout } from "$lib/layout";
-    import Video from "./Video.svelte";
+    import VideoPlayer from "./MediaPlayer.svelte";
 
-    export let peers: Record<string, MediaStream>;
-    export let self: MediaStream | undefined;
+    export let peers: Record<string, Set<MediaStream>>;
+    export let streams: { local?: MediaStream; screen?: MediaStream };
 
     /** Get metadata about videos */
     function getVideoLayouts(
-        peers: Record<string, MediaStream>,
-        self?: MediaStream
-    ): { aspectRatio: number }[] {
-        const stream = Object.values(peers);
-        if (self) stream.push(self);
-
+        ...videos: MediaStream[]
+    ): { aspectRatio?: number; stream: MediaStream }[] {
         // TODO: assumes there's at most 1 video track
-        const videos = stream.flatMap((stream) =>
-            stream.getVideoTracks().slice(0, 1)
-        );
+        const tracks = videos.flatMap((stream) => {
+            const [videoTrack] = stream.getVideoTracks();
+            return [
+                { track: videoTrack as MediaStreamTrack | undefined, stream },
+            ];
+        });
 
-        return videos.map((track) => {
-            const settings = track.getSettings();
+        return tracks.map(({ track, stream }) => {
+            const settings = track?.getSettings();
             return {
                 aspectRatio:
-                    settings.aspectRatio ??
-                    (settings.width ?? 640) / (settings.height ?? 480),
+                    settings?.aspectRatio ??
+                    (settings?.width ?? 640) / (settings?.height ?? 480),
+                stream,
             };
         });
     }
 
-    $: videos = getVideoLayouts(peers, self);
+    $: videos = getVideoLayouts(
+        ...Object.values(peers).flatMap((streams) => [...streams]),
+        ...(streams.local ? [streams.local] : []),
+        ...(streams.screen ? [streams.screen] : [])
+    );
 
     let client = { width: 1, height: 1 };
     $: layout = findBestLayout(client, videos);
 
-    $: style = `grid-template-columns: repeat(${layout.cols}, 1fr); grid-template-rows: repeat(${layout.rows}, 1fr)`;
+    $: style = `grid-template-columns: repeat(${layout.cols}, 1fr); grid-template-rows: repeat(${layout.rows}, 1fr);`;
 </script>
 
 <div
-    class="w-full h-full grid"
+    class="w-full h-full grid gap-3"
     {style}
     bind:clientWidth={client.width}
     bind:clientHeight={client.height}
 >
-    {#each Object.entries(peers) as [id, stream] (id)}
+    {#each videos as { stream } (stream.id)}
         <div class="min-w-0 min-h-0">
-            <Video class_="w-full h-full" {stream} />
+            <VideoPlayer
+                class_="w-full h-full"
+                {stream}
+                muted={stream == streams.local}
+            />
         </div>
     {/each}
-    {#if self}
-        <div class="min-w-0 min-h-0">
-            <Video class_="w-full h-full" stream={self} muted />
-        </div>
-    {/if}
 </div>

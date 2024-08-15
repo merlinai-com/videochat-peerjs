@@ -17,6 +17,9 @@ dependencies:
   socket.io-msgpack-parser:
     specifier: ^3.0.2
     version: 3.0.2
+  webrtc-adapter:
+    specifier: ^9.0.1
+    version: 9.0.1
 
 devDependencies:
   '@isaacs/ttlcache':
@@ -69,7 +72,7 @@ devDependencies:
     version: 4.7.5
   sso:
     specifier: github:merlinai-com/sso
-    version: git@github.com+merlinai-com/sso/c8e79fc01723dab6abc4c16f6055e03069d029d5
+    version: git/github.com+merlinai-com/sso/c8e79fc01723dab6abc4c16f6055e03069d029d5
   surrealdb.js:
     specifier: 1.0.0-beta.9
     version: 1.0.0-beta.9
@@ -2764,6 +2767,10 @@ packages:
       rimraf: 2.7.1
     dev: true
 
+  /sdp@3.2.0:
+    resolution: {integrity: sha512-d7wDPgDV3DDiqulJjKiV2865wKsJ34YI+NDREbm+FySq6WuKOikwyNQcm+doLAZ1O6ltdO0SeKle2xMpN3Brgw==}
+    dev: false
+
   /semver@7.6.3:
     resolution: {integrity: sha512-oVekP1cKtI+CTDvHWYFUcMtsK/00wmAEfyqKfNdARm8u1wNVhSgaX7A8d4UuIlUI5e84iEwOhs7ZPYRmzU9U6A==}
     engines: {node: '>=10'}
@@ -3230,6 +3237,13 @@ packages:
       vite: 5.4.0
     dev: true
 
+  /webrtc-adapter@9.0.1:
+    resolution: {integrity: sha512-1AQO+d4ElfVSXyzNVTOewgGT/tAomwwztX/6e3totvyyzXPvXIIuUUjAmyZGbKBKbZOXauuJooZm3g6IuFuiNQ==}
+    engines: {node: '>=6.0.0', npm: '>=3.10.0'}
+    dependencies:
+      sdp: 3.2.0
+    dev: false
+
   /which@2.0.2:
     resolution: {integrity: sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA==}
     engines: {node: '>= 8'}
@@ -3312,7 +3326,7 @@ packages:
     resolution: {integrity: sha512-XBx9AXhXktjUqnepgTiE5flcKIYWi/rme0Eaj+5Y0lftuGBq+jyRu/md4WnuxqgP1ubdpNCsYEYPxrzVHD8d6g==}
     dev: true
 
-  git@github.com+merlinai-com/sso/c8e79fc01723dab6abc4c16f6055e03069d029d5:
+  git/github.com+merlinai-com/sso/c8e79fc01723dab6abc4c16f6055e03069d029d5:
     resolution: {commit: c8e79fc01723dab6abc4c16f6055e03069d029d5, repo: git@github.com:merlinai-com/sso.git, type: git}
     name: sso
     version: 0.0.1

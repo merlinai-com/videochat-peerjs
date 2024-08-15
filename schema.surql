@@ -26,11 +26,8 @@ DEFINE INDEX message__out ON message FIELDS out;
 
 -- A single chunk of recording, as a standalone file with metadata
 DEFINE TABLE recording TYPE NORMAL;
-DEFINE FIELD user ON recording TYPE option<record<user>>;
-DEFINE FIELD userName ON recording TYPE option<string>;
--- The temporary ID of the user who started this recording
--- This is only set when the recording is running
-DEFINE FIELD owner ON recording TYPE option<uuid>;
+DEFINE FIELD user ON recording TYPE record<user>;
+DEFINE FIELD complete ON recording TYPE bool DEFAULT false;
 -- The mime type
 DEFINE FIELD mimeType ON recording TYPE string;
 DEFINE FIELD startTime ON recording TYPE datetime;
@@ -102,6 +99,38 @@ DEFINE FUNCTION fn::setUserName($user: record<user>, $name: option<string>) {
     UPDATE $user SET name = $name;
 };
 
+DEFINE FUNCTION fn::migrateUser($dest: record<user>, $src: record<user>) {
+    -- message table
+    UPDATE message SET from = $dest WHERE from = $src;
+
+    -- recording table
+    UPDATE recording SET user = $dest WHERE from = $src;
+
+    -- room table
+    UPDATE room SET owner = $dest WHERE from = $src;
+
+    -- group table
+
+    -- in_group table
+    LET $groups = fn::getGroups($src);
+    FOR $group IN $groups.groups {
+        IF $group.owner == $src {
+            UPDATE $group SET owner = $dest;
+        };
+        IF $src IN $group.users {
+            UPDATE $group SET users -= $src, users += $dest;
+        };
+        IF !(SELECT VALUE id FROM in_group WHERE in = $dest && out = $group.id) {
+            fn::joinGroup($group.id, $dest);
+        };
+    };
+
+    -- in_room table
+
+    -- user table
+    DELETE $src;
+};
+
 -- Throw an error if no user exists
 DEFINE FUNCTION fn::ensureUser($user: record<user>) {
     IF $user.id == NONE {
@@ -165,17 +194,13 @@ DEFINE FUNCTION fn::queryRoom($id: record<room>) {
 };
 
 DEFINE FUNCTION fn::createRecording(
-    $user: option<record<user>>,
-    $owner: uuid,
-    $userName: option<string>,
+    $user: record<user>,
     $mimeType: string,
     $room: record<room>,
 ) {
     LET $recording = (CREATE recording:uuid() SET
         user = $user,
-        userName = $userName,
         mimeType = $mimeType,
-        owner = $owner,
         startTime = time::now()
     );
     LET $id = array::first($recording).id;
@@ -183,13 +208,12 @@ DEFINE FUNCTION fn::createRecording(
     RETURN $id;
 };
 
-DEFINE FUNCTION fn::isRecordingOwner($user: uuid, $recording: record<recording>) {
-    LET $owner = (SELECT VALUE owner FROM ONLY $recording);
-    RETURN $owner == $user;
+DEFINE FUNCTION fn::isRecordingOwner($user: record<user>, $recording: record<recording>) {
+    RETURN $recording.user == $user;
 };
 
-DEFINE FUNCTION fn::finishRecording($user: uuid, $recording: record<recording>) {
-    IF fn::isRecordingOwner($user, $recording) {
-        UPDATE $recording UNSET owner;
-    }
+DEFINE FUNCTION fn::finishRecording($user: record<user>, $recording: record<recording>) {
+    IF $recording.user == $user {
+        UPDATE $recording SET complete = true;
+    };
 };

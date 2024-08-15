@@ -13,3 +13,11 @@ export function select<T extends object, K extends keyof T>(
 
     return vals.filter<T & Record<K, NonNullable<T[K]>>>(check);
 }
+
+export function enumerate<T>(vals: T[]): { index: number; value: T }[] {
+    return vals.map((value, index) => ({ value, index }));
+}
+
+export function uniq<T>(vals: T[]): T[] {
+    return [...new Set(vals)];
+}

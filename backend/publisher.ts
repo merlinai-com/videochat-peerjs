@@ -1,59 +1,63 @@
+import { EventEmitter } from "node:events";
+
+interface ReservedEvents {
+    error: (error: Error, event: string, ...args: any) => void;
+    unsubscribe: () => void;
+}
+
 interface EventMap {
     [id: string | symbol | number]: any;
 }
 
 export type Listeners<Id extends keyof E, E extends EventMap> = {
     [ev in keyof E[Id]]?: E[Id][ev];
+} & {
+    [ev in keyof ReservedEvents]?: ReservedEvents[ev];
 };
 
-export class Subscriber<Id extends keyof E, E extends EventMap> {
+export class Subscriber<
+    Id extends keyof E,
+    E extends EventMap
+> extends EventEmitter<
+    {
+        [K in keyof E[Id]]: Parameters<E[Id][K]>;
+    } & { [K in keyof ReservedEvents]: Parameters<ReservedEvents[K]> }
+> {
     pub: Publisher<E>;
     id: Id;
-    listeners: {
-        [ev in keyof E[Id]]?: Set<E[Id][ev]>;
-    };
 
-    constructor(pub: Publisher<E>, id: Id, listeners?: Listeners<Id, E>) {
+    constructor(
+        pub: Publisher<E>,
+        id: Id,
+        listeners?: Listeners<Id, E & ReservedEvents>
+    ) {
+        super({ captureRejections: true });
         this.pub = pub;
         this.id = id;
-        this.listeners = {};
         if (listeners) {
             for (const ev in listeners) {
-                this.listeners[ev] = new Set([listeners[ev]]);
+                // @ts-ignore
+                this.on(ev, listeners[ev]);
             }
         }
     }
 
     unsubscribe() {
+        // @ts-ignore
+        this.emit("unsubscribe");
         this.pub._unsubscribe(this);
     }
 
-    /** Add an event listener */
-    on<Ev extends keyof E[Id]>(ev: Ev, callback: E[Id][Ev]) {
-        this.listeners[ev] ??= new Set();
-        this.listeners[ev].add(callback);
+    [EventEmitter.captureRejectionSymbol](
+        error: Error,
+        event: keyof object,
+        ...args: any[]
+    ) {
+        // @ts-ignore
+        this.emit("error", error, event, ...args);
     }
 
-    /** Remove an event listener */
-    off<Ev extends keyof E[Id]>(ev: Ev, callback: E[Id][Ev]) {
-        if (this.listeners[ev]) this.listeners[ev].delete(callback);
-    }
-
-    _emit<Ev extends keyof E[Id]>(ev: Ev, ...message: Parameters<E[Id][Ev]>) {
-        if (this.listeners[ev]) {
-            for (const listener of this.listeners[ev]) {
-                try {
-                    listener(...message);
-                } catch (err) {
-                    console.error(
-                        `Listener for ${this.id.toString()} threw an error:`,
-                        err
-                    );
-                }
-            }
-        }
-    }
-
+    /** Publish a message for this topic */
     publish<Ev extends keyof E[Id]>(ev: Ev, ...message: Parameters<E[Id][Ev]>) {
         this.pub.publish(this.id, ev, ...message);
     }
@@ -73,9 +77,10 @@ export class Publisher<E extends EventMap> {
         return this.subs[id];
     }
 
+    /** Subscribe to a topic */
     subscribe<Id extends keyof E>(
         id: Id,
-        listeners?: Listeners<Id, E>
+        listeners?: Listeners<Id, E & ReservedEvents>
     ): Subscriber<Id, E> {
         const sub = new Subscriber(this, id, listeners);
         this._getSubsFor(id).add(sub);
@@ -93,12 +98,11 @@ export class Publisher<E extends EventMap> {
         ev: Ev,
         ...message: Parameters<E[Id][Ev]>
     ) {
-        setImmediate(() => {
-            const subs = this.subs[id];
-            if (!subs) return;
-            for (const sub of subs) {
-                sub._emit(ev, ...message);
-            }
-        });
+        const subs = this.subs[id];
+        if (!subs) return;
+        for (const sub of subs) {
+            // @ts-ignore
+            sub.emit(ev, ...message);
+        }
     }
 }

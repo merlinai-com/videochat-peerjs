@@ -1,9 +1,10 @@
 import { dev } from "$app/environment";
-import { db, getUserId } from "$lib/server";
+import { database, getUser } from "$lib/server";
 import { makeCookies, sso, handle as ssoHandle } from "$lib/server/sso";
 import type { Handle } from "@sveltejs/kit";
 import { sequence } from "@sveltejs/kit/hooks";
 
+/** Handle SSO acounts */
 const handleSSO: Handle = async ({ event, resolve }) => {
     const cookies = makeCookies(event.cookies);
     ssoHandle(await sso.handleRedirect(event.url, cookies));
@@ -15,8 +16,9 @@ const handleSSO: Handle = async ({ event, resolve }) => {
     return resolve(event);
 };
 
-const handleUserId: Handle = async ({ event, resolve }) => {
-    const userId = await getUserId(db, {
+/** Handle Zap accounts - which might be linked to an SSO account */
+const handleUser: Handle = async ({ event, resolve }) => {
+    const userId = await getUser(database, {
         ssoUser: event.locals.ssoUser,
         cookies: event.cookies,
         secure: !dev,
@@ -27,4 +29,4 @@ const handleUserId: Handle = async ({ event, resolve }) => {
     return resolve(event);
 };
 
-export const handle: Handle = sequence(handleSSO, handleUserId);
+export const handle: Handle = sequence(handleSSO, handleUser);

@@ -71,4 +71,4 @@
     {/if}
 </div>
 
-<Message user={data.user} {selectedGroup} />
+<Message user={data.user} {selectedGroup} controls />

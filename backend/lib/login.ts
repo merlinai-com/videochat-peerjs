@@ -1,7 +1,13 @@
 import type { Cookies as SvelteCookies } from "@sveltejs/kit";
-import { Cookie, type Cookies as SsoCookies, type User as SsoUser } from "sso";
+import {
+    Cookie,
+    SSO,
+    type Cookies as SsoCookies,
+    type User as SsoUser,
+} from "sso";
 import { RecordId } from "surrealdb.js";
-import { Database, type User as DbUser } from "./database.js";
+import { Database, UserId, type User as DbUser } from "./database.js";
+import { select } from "./utils.js";
 
 /** The max age for user ID cookie in days */
 const cookieMaxAgeDays = 30;
@@ -25,6 +31,14 @@ const cookieOptions = {
     path: "/",
     httpOnly: true,
 };
+
+function deleteCookie(
+    cookies: SsoCookies,
+    name: string,
+    opts?: { secure?: boolean }
+) {
+    cookies.set(new Cookie(name, "", { ...cookieOptions, maxAge: 0, ...opts }));
+}
 
 export async function getUser(
     db: Database,
@@ -53,42 +67,82 @@ export async function getUser(
         secure?: boolean;
     }
 ): Promise<DbUser | undefined> {
-    let { ssoUser, cookies } = opts;
+    let { cookies } = opts;
     const create = opts.create ?? false;
     const secure = opts.secure ?? false;
-    if (ssoUser) {
-        return await db.getSsoUser(ssoUser.id, create);
-    } else if (cookies) {
-        cookies = adaptCookies(cookies);
-        // TODO: sign keys
-        let user: DbUser | undefined;
-        const fromCookie = cookies.get("zap-user");
-        if (fromCookie)
-            user = await db.surreal.select<DbUser>(
-                new RecordId("user", fromCookie)
-            );
+    cookies = cookies && adaptCookies(cookies);
+    const fromCookie = cookies?.get("zap-user");
 
-        if (!user && create) user = await db.createUser();
+    /** The user based on SSO login */
+    const ssoUser = opts.ssoUser
+        ? await db.getSsoUser(opts.ssoUser.id, create)
+        : undefined;
 
-        if (user) {
-            cookies.set(
-                new Cookie("zap-user", user.id.id as string, {
-                    ...cookieOptions,
-                    maxAge: cookieMaxAgeDays * 24 * 60 * 60,
-                    secure,
-                })
-            );
-        } else if (!user && fromCookie) {
-            cookies.set(
-                new Cookie("zap-user", "", {
-                    ...cookieOptions,
-                    maxAge: 0,
-                    secure,
-                })
-            );
-        }
-        return user;
-    } else {
-        return;
+    // TODO: sign keys?
+    /** The user based on cookie login */
+    let cookieUser = fromCookie
+        ? await db.surreal.select<DbUser>(new RecordId("user", fromCookie))
+        : undefined;
+
+    // If both are present, then migrate to SSO login
+    if (ssoUser && cookieUser) {
+        // Migrate cookie user to sso user
+        await db.migrateUser(ssoUser.id, cookieUser.id);
+        cookieUser = undefined;
     }
+
+    // If no login method is used, and create is set then create a user
+    if (!ssoUser && !cookieUser && create) {
+        cookieUser = await db.createUser();
+    }
+
+    // If there is a cookie user, update the cookie
+    if (cookieUser) {
+        cookies?.set(
+            new Cookie("zap-user", cookieUser.id.id as string, {
+                ...cookieOptions,
+                maxAge: cookieMaxAgeDays * 24 * 60 * 60,
+                secure,
+            })
+        );
+    }
+
+    // If there was a cookie set, but there's no cookie user then delete the cookie
+    if (!cookieUser && fromCookie) {
+        cookies && deleteCookie(cookies, "zap-user", { secure });
+    }
+
+    return ssoUser || cookieUser;
+}
+
+export async function getUserNames(
+    db: Database,
+    sso: SSO,
+    userIds: UserId[]
+): Promise<{ id: UserId; name?: string }[]> {
+    const names = [];
+    const users = await db.fetchAll(userIds);
+
+    // Users with a nickname
+    names.push(...select(users, "name"));
+
+    /** Users with sso_id without name */
+    const ssoNoNick = select(
+        users.filter((user) => !user.name),
+        "sso_id"
+    );
+    const userIdBySsoId = Object.fromEntries(
+        ssoNoNick.map(({ sso_id, id }) => [sso_id, id])
+    );
+    const ssoUsers = await sso.getUsers({
+        ids: ssoNoNick.map(({ sso_id }) => sso_id),
+    });
+
+    const ssoWithName = select(ssoUsers, "name").map(({ id, name }) => ({
+        id: userIdBySsoId[id],
+        name,
+    }));
+    names.push(...ssoWithName);
+
+    return names;
 }

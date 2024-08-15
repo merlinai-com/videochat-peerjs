@@ -44,11 +44,10 @@ export function initRoomNamespace(
 
         const roomListeners: Listeners<JsonSafe<RoomId>, PublisherEvents> = {
             join(peerId) {
-                if (!socket.data.signalId) return;
-                if (socket.data.signalId !== peerId) {
+                if (signalId !== peerId) {
                     socket.emit("connect_to", { id: peerId, polite: true });
                     pub.publish(peerId, "connect_to", {
-                        id: socket.data.signalId,
+                        id: signalId,
                         polite: false,
                     });
                 }
@@ -61,6 +60,9 @@ export function initRoomNamespace(
             recording(act) {
                 if (act.from !== socket.data.signalId)
                     socket.emit("recording", act);
+            },
+            screen_share(arg) {
+                if (arg.user !== signalId) socket.emit("screen_share", arg);
             },
         };
 
@@ -112,6 +114,13 @@ export function initRoomNamespace(
 
         socket.on("recording", (arg) => roomSub?.publish("recording", arg));
 
+        socket.on("screen_share", (arg) => {
+            roomSub?.publish("screen_share", {
+                user: signalId,
+                streamId: arg.streamId,
+            });
+        });
+
         socket.on("signal", ({ to, desc, candidate }) => {
             pub.publish(to, "signal", {
                 from: signalId,
@@ -121,37 +130,51 @@ export function initRoomNamespace(
         });
 
         socket.on("upload_start", async ({ mimeType }, callback) => {
+            if (!socket.data.user) return callback({ error: "Not logged in" });
             if (!socket.data.roomId)
                 return callback({ error: "join_room has not been called" });
             const id = await db.createRecording({
-                user: socket.data.user?.id,
-                owner: signalId,
-                userName: socket.data.userName,
+                user: socket.data.user.id,
                 mimeType,
                 room: socket.data.roomId,
             });
             callback({ id: Database.jsonSafe(id) });
-            pub.publish("upload", "start", signalId, id, mimeType);
+            pub.publish(
+                "upload",
+                "start",
+                Database.jsonSafe(socket.data.user.id),
+                Database.jsonSafe(id),
+                mimeType
+            );
         });
 
         socket.on("upload_chunk", (id, data) => {
+            if (!socket.data.user)
+                return socket.emit("error", "Not logged in", "upload_chunk");
+
             pub.publish(
                 "upload",
                 "chunk",
-                signalId,
-                new RecordId("recording", id),
+                Database.jsonSafe(socket.data.user.id),
+                id,
                 data as Buffer
             );
         });
 
         socket.on("upload_stop", async (id) => {
+            if (!socket.data.user)
+                return socket.emit("error", "Not logged in", "upload_stop");
+
             pub.publish(
                 "upload",
                 "stop",
-                signalId,
+                Database.jsonSafe(socket.data.user.id),
+                id
+            );
+            await db.finishRecording(
+                socket.data.user.id,
                 new RecordId("recording", id)
             );
-            await db.finishRecording(signalId, new RecordId("recording", id));
         });
     });
 }

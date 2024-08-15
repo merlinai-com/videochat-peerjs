@@ -11,8 +11,17 @@ function initLogging(socket: Socket) {
 }
 
 export function room(): RoomSocket {
-    const socket = io("/room", { parser: msgpackParser });
+    const socket: RoomSocket = io("/room", { parser: msgpackParser });
     initLogging(socket);
+    socket.on("error", (message, cause) => {
+        if (cause) {
+            console.error(
+                `Error received on socket, in response to ${cause}: ${message}`
+            );
+        } else {
+            console.error(`Error received on socket: ${message}`);
+        }
+    });
     return socket;
 }
 

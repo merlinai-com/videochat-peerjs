@@ -1,4 +1,4 @@
-import type { Database } from "./lib/database.js";
+import { Database } from "./lib/database.js";
 import type { Publisher, Subscriber } from "./publisher.js";
 import type { PublisherEvents } from "./lib/types.js";
 import * as fs from "node:fs/promises";
@@ -19,8 +19,14 @@ export function createUploadSubscriber(
         );
 
     return pub.subscribe("upload", {
-        async chunk(from, id, data) {
-            if (await db.isRecordingOwner(from, id)) {
+        async chunk(from, rawId, data) {
+            const id = Database.parseRecord("recording", rawId);
+            if (
+                await db.isRecordingOwner(
+                    Database.parseRecord("user", from),
+                    id
+                )
+            ) {
                 const fp = getUploadPath(uploadDir, id.id as string);
                 try {
                     await fs.appendFile(fp, data);
@@ -35,6 +41,8 @@ export function createUploadSubscriber(
                         throw err;
                     }
                 }
+            } else {
+                console.error("Not owner");
             }
         },
     });

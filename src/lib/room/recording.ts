@@ -44,7 +44,7 @@ export async function createRecordingHandler(
         start: () => void;
         stop: () => void;
     },
-    signal?: AbortSignal
+    signal: AbortSignal
 ): Promise<{
     start: (localStream: MediaStream) => Promise<void>;
     stop: () => void;

@@ -28,8 +28,20 @@
     overflow: hidden;
 }
 
+.overflow-auto {
+    overflow: auto;
+}
+
 .grid {
     display: grid;
+}
+
+.span-cols-2 {
+    grid-column: span 2;
+}
+
+.span-cols-all {
+    grid-column: 1 / -1;
 }
 
 .flex-row {
@@ -42,7 +54,24 @@
     flex-direction: column;
 }
 
+.justify-end {
+    justify-content: end;
+}
+
+.hidden {
+    display: none;
+}
+
 /* Reset */
+
+html {
+    font-family: sans-serif;
+}
+
+li,
+ul {
+    list-style: none;
+}
 
 * {
     padding: 0;

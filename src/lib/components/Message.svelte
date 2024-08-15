@@ -18,8 +18,10 @@
 
     /** The current user's ID */
     export let user: JsonSafe<User> | undefined;
-
+    /** The currently selected group */
     export let selectedGroup: JsonSafe<Group> | undefined;
+    /** Include controls for the group (ie invite link, call button) */
+    export let controls = false;
 
     let socket: MessageSocket | undefined;
 
@@ -94,23 +96,25 @@
 </script>
 
 {#if selectedGroup}
-    <h2>{title}</h2>
-    <button
-        on:click={() =>
-            window.navigator.clipboard
-                .writeText(
-                    new URL(
-                        `/group/${selectedGroup.id.replace("group:", "")}`,
-                        window.location.origin
-                    ).href
-                )
-                .catch(console.error)}>Copy invite link</button
-    >
-    <form action="/?/call_group" method="POST" use:enhance>
-        <input name="group" value={selectedGroup.id} hidden readonly />
-        <button>Call</button>
-    </form>
-    <ul>
+    {#if controls}
+        <h2>{title}</h2>
+        <button
+            on:click={() =>
+                window.navigator.clipboard
+                    .writeText(
+                        new URL(
+                            `/group/${selectedGroup.id.replace("group:", "")}`,
+                            window.location.origin
+                        ).href
+                    )
+                    .catch(console.error)}>Copy invite link</button
+        >
+        <form action="/?/call_group" method="POST" use:enhance>
+            <input name="group" value={selectedGroup.id} hidden readonly />
+            <button>Call</button>
+        </form>
+    {/if}
+    <ul class="flex-col overflow-auto min-h-0">
         {#each messages as message}
             <li>
                 <b

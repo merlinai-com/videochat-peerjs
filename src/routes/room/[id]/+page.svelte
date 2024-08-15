@@ -1,17 +1,27 @@
 <script lang="ts">
+    import Message from "$lib/components/Message.svelte";
     import VideoGrid from "$lib/components/VideoGrid.svelte";
+    import VideoScreenShare from "$lib/components/VideoScreenShare.svelte";
     import { createRecordingHandler, createRtcHandler } from "$lib/room";
+    import type { MediaType, RtcHandler } from "$lib/room/webrtc";
     import { room } from "$lib/socket";
-    import type { RoomSocket, UUID } from "backend/lib/types";
+    import type { RoomSocket } from "backend/lib/types";
     import { onMount } from "svelte";
     import type { PageData } from "./$types";
 
     export let data: PageData;
 
-    let localStream: MediaStream | undefined;
+    const streams: { local?: MediaStream; screen?: MediaStream } = {};
+    const enabledMedia = { video: false, audio: false, screen: false };
+
+    /** Show group messages */
+    let showMessages = false;
+
+    /** The id of the current screen share*/
+    let screenShareId: string | undefined;
 
     const state = { connected: false, recording: false };
-    let videos: Record<UUID, MediaStream> = {};
+    let videos: Record<string, Set<MediaStream>> = {};
 
     const tap = (f1: () => void, f2: () => void) => () => {
         f1();
@@ -23,39 +33,99 @@
         startRecording: () => {},
         stopRecording: () => {},
         cleanup: () => {
-            console.log("cleanup");
+            if (localStorage.get("debug")) console.log("cleanup");
         },
+        toggleMedia: (_type: MediaType) => {},
     };
+
+    async function toggleMedia(
+        socket: RoomSocket,
+        rtcHandler: RtcHandler,
+        type: MediaType
+    ) {
+        enabledMedia[type] = !enabledMedia[type];
+        switch (type) {
+            case "video":
+            case "audio":
+                if (streams.local) {
+                    rtcHandler.removeStream(streams.local);
+                    streams.local = undefined;
+                }
+
+                if (enabledMedia.video || enabledMedia.audio) {
+                    try {
+                        streams.local =
+                            await window.navigator.mediaDevices.getUserMedia({
+                                video: enabledMedia.video,
+                                audio: enabledMedia.audio,
+                            });
+                    } catch (error) {
+                        console.error("Unable to get user media:", error);
+                        return;
+                    }
+
+                    rtcHandler.addStream(streams.local);
+                }
+
+                break;
+
+            case "screen":
+                if (streams.screen) {
+                    rtcHandler.removeStream(streams.screen);
+                    streams.screen = undefined;
+                    screenShareId = undefined;
+                }
+
+                if (enabledMedia.screen) {
+                    try {
+                        streams.screen =
+                            await window.navigator.mediaDevices.getDisplayMedia(
+                                { video: true, audio: false }
+                            );
+                    } catch (error) {
+                        console.error("Unable to get display media:", error);
+                        return;
+                    }
+
+                    socket.emit("screen_share", {
+                        streamId: streams.screen.id,
+                    });
+                    screenShareId = streams.screen.id;
+
+                    rtcHandler.addStream(streams.screen);
+                } else {
+                    socket.emit("screen_share", {});
+                }
+
+                break;
+        }
+    }
 
     async function init(socket: RoomSocket) {
         const ac = new AbortController();
         handlers.cleanup = tap(handlers.cleanup, () => ac.abort());
 
-        try {
-            localStream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: true,
-            });
-        } catch (err) {
-            console.error("Unable to get user media", err);
-            return;
-        }
-
         handlers.cleanup = tap(handlers.cleanup, () => {
-            localStream?.getTracks().forEach((track) => track.stop());
+            for (const stream of Object.values(streams)) {
+                for (const track of stream.getTracks()) track.stop();
+            }
+        });
+
+        socket.on("screen_share", (arg) => {
+            if (arg && streams.screen) handlers.toggleMedia("screen");
+            screenShareId = arg?.streamId;
         });
 
         const rtcHandler = createRtcHandler(
             data.iceServers,
-            localStream,
+            socket,
+            streams,
             {
-                signal(arg) {
-                    socket.emit("signal", arg);
+                addStream(id, stream) {
+                    videos[id] ??= new Set();
+                    videos[id].add(stream);
                 },
-                addVideoOutput(id, stream) {
-                    videos[id] = stream;
-                },
-                removeVideoOutput(id) {
+                removePeer(id) {
                     delete videos[id];
                     videos = videos;
                 },
@@ -63,11 +133,11 @@
             state
         );
 
-        handlers.cleanup = tap(handlers.cleanup, rtcHandler.cleanup);
+        handlers.cleanup = tap(handlers.cleanup, rtcHandler.disconnectAll);
+        handlers.toggleMedia = (type) => toggleMedia(socket, rtcHandler, type);
 
-        socket.on("connect_to", rtcHandler.connect);
-        socket.on("signal", rtcHandler.signal);
-        socket.on("disconnect_from", rtcHandler.disconnect);
+        handlers.toggleMedia("video");
+        handlers.toggleMedia("audio");
 
         handlers.connect = () => {
             state.connected = !state.connected;
@@ -103,7 +173,7 @@
             ac.signal
         );
 
-        handlers.startRecording = () => recordingHandler.start(localStream!);
+        handlers.startRecording = () => recordingHandler.start(streams.local!);
         handlers.stopRecording = recordingHandler.stop;
         handlers.cleanup = tap(handlers.cleanup, recordingHandler.stop);
     }
@@ -116,38 +186,58 @@
     });
 </script>
 
-<div class="root overflow-hidden grid">
-    <div class="flex-row p-3 gap-3">
+<div class="root overflow-hidden grid gap-3 p-3">
+    <div class="flex-row gap-3 span-cols-2">
         <nav>
             <a href="/">Zap</a>
         </nav>
 
-        <div class="flex-row gap-3">
-            <p>Room: {data.roomName}</p>
-            <button
-                on:click={() =>
-                    navigator.clipboard.writeText(window.location.href)}
-            >
-                Copy URL
-            </button>
-        </div>
+        <p>Room: {data.roomName}</p>
+        <button
+            on:click={() => navigator.clipboard.writeText(window.location.href)}
+        >
+            Copy URL
+        </button>
+        <button on:click={handlers.connect}>
+            {#if state.connected}
+                Disconnect from call
+            {:else}
+                Connect to call
+            {/if}
+        </button>
+        <button on:click={() => (showMessages = !showMessages)}>
+            {#if showMessages}
+                Hide messages
+            {:else}
+                Show messages
+            {/if}
+        </button>
+        <button on:click={() => handlers.toggleMedia("screen")}>
+            {#if streams.screen}
+                Stop sharing screen
+            {:else}
+                Share screen
+            {/if}
+        </button>
+        {#if state.recording}
+            Recording
+        {/if}
     </div>
 
-    <div class="min-h-0">
-        <VideoGrid peers={videos} self={localStream} />
+    <div class={showMessages ? "min-h-0" : "min-h-0 span-cols-2"}>
+        {#if screenShareId}
+            <VideoScreenShare peers={videos} {streams} {screenShareId} />
+        {:else}
+            <VideoGrid peers={videos} {streams} />
+        {/if}
     </div>
 
-    <div class="flex-row p-3 gap-3">
-        <form on:submit|preventDefault={handlers.connect}>
-            <button type="submit">
-                {#if state.connected}
-                    Disconnect from call
-                {:else}
-                    Connect to call
-                {/if}
-            </button>
-        </form>
-        {#if data.isOwner}
+    <div class={showMessages ? "flex-col min-h-0 justify-end" : "hidden"}>
+        <Message user={data.user} selectedGroup={data.group} />
+    </div>
+
+    {#if data.isOwner}
+        <div class="flex-row gap-3 span-cols-2">
             <button
                 disabled={state.recording || !state.connected}
                 on:click={handlers.startRecording}
@@ -169,17 +259,15 @@
             >
                 Download recording
             </a>
-            <!-- <a class="button disabled" download="recording.webm">
-    Download Recording
-    </a> -->
-        {/if}
-    </div>
+        </div>
+    {/if}
 </div>
 
 <style>
     .root {
         width: 100vw;
         height: 100vh;
+        grid-template-columns: 3.5fr minmax(14rem, 1fr);
         grid-template-rows: max-content 1fr max-content;
     }
 </style>

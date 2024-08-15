@@ -1,12 +1,12 @@
 import {
     Action,
     Emitter,
+    RecordId,
     ResponseError,
     Surreal,
     UUID as SurrealUUID,
 } from "surrealdb.js";
-import { RecordId } from "surrealdb.js";
-import type { SignalId, UUID } from "./types.js";
+import type { UUID } from "./types.js";
 
 export type UserId = RecordId<"user">;
 export type User = {
@@ -34,8 +34,7 @@ export type Message<A extends Attachment | AttachmentId = AttachmentId> = {
 export type RecordingId = RecordId<"recording">;
 export type Recording = {
     id: RecordingId;
-    user?: UserId;
-    userName?: string;
+    user: UserId;
     mimeType: string;
     startTime: Date;
 };
@@ -109,26 +108,27 @@ export class Database extends Emitter<{ user: [Action, User] }> {
         env: Record<string, string | undefined>,
         building?: boolean
     ): Promise<Database> {
+        if (building) return new Database(undefined as unknown as Surreal);
+
         const surreal = new Surreal();
-        if (!building) {
-            await surreal.connect(get(env, "DATABASE_ENDPOINT"), {
+        const endpoint = new URL(get(env, "DATABASE_ENDPOINT"));
+
+        await surreal.connect(endpoint, {
+            namespace: get(env, "DATABASE_NAMESPACE"),
+            database: get(env, "DATABASE_DATABASE"),
+            auth: {
                 namespace: get(env, "DATABASE_NAMESPACE"),
                 database: get(env, "DATABASE_DATABASE"),
-                auth: {
-                    namespace: get(env, "DATABASE_NAMESPACE"),
-                    database: get(env, "DATABASE_DATABASE"),
-                    username: get(env, "DATABASE_USER"),
-                    password: get(env, "DATABASE_PASS"),
-                },
-            });
-        }
+                username: get(env, "DATABASE_USER"),
+                password: get(env, "DATABASE_PASS"),
+            },
+        });
 
         const db = new Database(surreal);
 
-        if (!building)
-            db.live.user = await db.surreal.live<User>("user", (act, res) => {
-                db.emit("user", [act, res]);
-            });
+        db.live.user = await db.surreal.live<User>("user", (act, res) => {
+            db.emit("user", [act, res]);
+        });
 
         return db;
     }
@@ -158,6 +158,8 @@ export class Database extends Emitter<{ user: [Action, User] }> {
     static parseRecord<Tb extends string>(tb: Tb, id: string): RecordId<Tb> {
         if (id.startsWith(tb + ":"))
             return new RecordId(tb, id.slice(tb.length + 1));
+        else if (id.includes(":"))
+            throw new Error(`Invalid id for table ${tb}: ${id}`);
         else return new RecordId(tb, id);
     }
 
@@ -199,12 +201,24 @@ export class Database extends Emitter<{ user: [Action, User] }> {
     }
 
     /** Get or create a user with an SSO id */
-    async getSsoUser(sso_id: string, create: boolean = false): Promise<User> {
+    async getSsoUser(sso_id: string, create: true): Promise<User>;
+    async getSsoUser(
+        sso_id: string,
+        create?: boolean
+    ): Promise<User | undefined>;
+    async getSsoUser(
+        sso_id: string,
+        create: boolean = false
+    ): Promise<User | undefined> {
         return await this.run("fn::getSsoUser", sso_id, create);
     }
 
     async setUserName(user: UserId, name?: string): Promise<void> {
         return await this.run("fn::setUserName", user, name);
+    }
+
+    async migrateUser(dest: UserId, src: UserId): Promise<void> {
+        await this.run("fn::migrateUser", dest, src);
     }
 
     async getGroups(user: UserId): Promise<Group[] | null> {
@@ -261,41 +275,26 @@ export class Database extends Emitter<{ user: [Action, User] }> {
      * @param owner The signal ID of the owner of this recording
      */
     async createRecording(args: {
-        user: UserId | undefined;
-        owner: SignalId;
-        userName: string | undefined;
+        user: UserId;
         mimeType: string;
         room: RoomId;
     }): Promise<RecordingId> {
         return await this.run(
             "fn::createRecording",
             args.user,
-            SurrealUUID.parse(args.owner.replace("signal:", "")),
-            args.userName,
             args.mimeType,
             args.room
         );
     }
 
     async isRecordingOwner(
-        owner: SignalId,
+        owner: UserId,
         recording: RecordingId
     ): Promise<string | null> {
-        return await this.run(
-            "fn::isRecordingOwner",
-            SurrealUUID.parse(owner.replace("signal:", "")),
-            recording
-        );
+        return await this.run("fn::isRecordingOwner", owner, recording);
     }
 
-    async finishRecording(
-        owner: SignalId,
-        recording: RecordingId
-    ): Promise<void> {
-        await this.run(
-            "fn::finishRecording",
-            SurrealUUID.parse(owner.replace("signal:", "")),
-            recording
-        );
+    async finishRecording(user: UserId, recording: RecordingId): Promise<void> {
+        await this.run("fn::finishRecording", user, recording);
     }
 }

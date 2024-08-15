@@ -2,6 +2,7 @@ import { Namespace } from "socket.io";
 import { SSO } from "sso";
 import { RecordId } from "surrealdb.js";
 import { Database, type GroupId, type JsonSafe } from "./lib/database.js";
+import { getUserNames } from "./lib/login.js";
 import type {
     InterServerEvents,
     MessageClientToServerEvents,
@@ -9,7 +10,6 @@ import type {
     PublisherEvents,
     RoomSocketData,
 } from "./lib/types.js";
-import { select } from "./lib/utils.js";
 import { type Listeners, Publisher, Subscriber } from "./publisher.js";
 
 export function initMessageNamespace(
@@ -89,35 +89,13 @@ export function initMessageNamespace(
         });
 
         socket.on("request_users", async (userIds) => {
-            const toSend = [];
-            const users = await db.fetchAll(
+            const toSend = await getUserNames(
+                db,
+                sso,
                 userIds.map((id) => Database.parseRecord("user", id))
             );
-
-            // Users with a nickname
-            toSend.push(...Database.jsonSafe(select(users, "name")));
-
-            /** Users with sso_id without name */
-            const ssoNoNick = select(
-                users.filter((user) => !user.name),
-                "sso_id"
-            );
-            const userIdBySsoId = Object.fromEntries(
-                ssoNoNick.map(({ sso_id, id }) => [sso_id, id])
-            );
-            const ssoUsers = await sso.getUsers({
-                ids: ssoNoNick.map(({ sso_id }) => sso_id),
-            });
-
-            const ssoWithName = select(ssoUsers, "name").map(
-                ({ id, name }) => ({
-                    id: userIdBySsoId[id],
-                    name,
-                })
-            );
-            toSend.push(...Database.jsonSafe(ssoWithName));
-
-            if (toSend.length > 0) socket.emit("users", toSend);
+            if (toSend.length > 0)
+                socket.emit("users", Database.jsonSafe(toSend));
         });
     });
 }

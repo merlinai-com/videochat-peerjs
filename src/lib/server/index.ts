@@ -4,9 +4,9 @@ import { Database } from "backend/lib/database";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-export { getUser as getUserId } from "backend/lib/login";
+export { getUser } from "backend/lib/login";
 
-export const db = await Database.init(env, building);
+export const database = await Database.init(env, building);
 
 export const compressionLevel = 6;
 
