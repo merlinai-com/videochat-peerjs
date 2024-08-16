@@ -9,6 +9,7 @@
     import { onMount } from "svelte";
     import type { PageData } from "./$types";
     import { debug } from "$lib";
+    import Login from "$lib/components/Login.svelte";
 
     export let data: PageData;
 
@@ -39,15 +40,13 @@
         toggleMedia: (_type: MediaType) => {},
     };
 
-    async function toggleMedia(
+    async function handleMediaUpdate(
         socket: RoomSocket,
         rtcHandler: RtcHandler,
-        type: MediaType
+        type: keyof typeof streams
     ) {
-        enabledMedia[type] = !enabledMedia[type];
         switch (type) {
-            case "video":
-            case "audio":
+            case "local":
                 if (streams.local) {
                     rtcHandler.removeStream(streams.local);
                     streams.local = undefined;
@@ -81,8 +80,22 @@
                     try {
                         streams.screen =
                             await window.navigator.mediaDevices.getDisplayMedia(
-                                { video: true, audio: false }
+                                {
+                                    video: true,
+                                    audio: true,
+                                }
                             );
+
+                        for (const track of streams.screen.getTracks()) {
+                            // Add listener for the user ending the stream
+                            track.addEventListener("ended", () => {
+                                if (streams.screen) {
+                                    rtcHandler.removeStream(streams.screen);
+                                    streams.screen = undefined;
+                                    socket.emit("screen_share", {});
+                                }
+                            });
+                        }
                     } catch (error) {
                         console.error("Unable to get display media:", error);
                         return;
@@ -102,13 +115,29 @@
         }
     }
 
+    async function toggleMedia(
+        socket: RoomSocket,
+        rtcHandler: RtcHandler,
+        type: MediaType
+    ) {
+        enabledMedia[type] = !enabledMedia[type];
+        handleMediaUpdate(
+            socket,
+            rtcHandler,
+            type == "screen" ? "screen" : "local"
+        );
+    }
+
+    /** Initialise handlers for user actions and socket events */
     async function init(socket: RoomSocket) {
         const ac = new AbortController();
         handlers.cleanup = tap(handlers.cleanup, () => ac.abort());
 
         handlers.cleanup = tap(handlers.cleanup, () => {
             for (const stream of Object.values(streams)) {
-                for (const track of stream.getTracks()) track.stop();
+                if (stream) {
+                    for (const track of stream.getTracks()) track.stop();
+                }
             }
         });
 
@@ -126,6 +155,9 @@
                     videos[id] ??= new Set();
                     videos[id].add(stream);
                 },
+                removeStream(id, stream) {
+                    videos[id]?.delete(stream);
+                },
                 removePeer(id) {
                     delete videos[id];
                     videos = videos;
@@ -136,9 +168,6 @@
 
         handlers.cleanup = tap(handlers.cleanup, rtcHandler.disconnectAll);
         handlers.toggleMedia = (type) => toggleMedia(socket, rtcHandler, type);
-
-        handlers.toggleMedia("video");
-        handlers.toggleMedia("audio");
 
         handlers.connect = () => {
             state.connected = !state.connected;
@@ -174,15 +203,22 @@
             ac.signal
         );
 
-        handlers.startRecording = () => recordingHandler.start(streams.local!);
+        handlers.startRecording = () => recordingHandler.start(streams);
         handlers.stopRecording = recordingHandler.stop;
         handlers.cleanup = tap(handlers.cleanup, recordingHandler.stop);
+
+        return { rtcHandler, recordingHandler };
     }
 
     onMount(() => {
         const socket = room();
         handlers.cleanup = tap(handlers.cleanup, () => socket.close());
-        init(socket);
+        init(socket).then(({ rtcHandler }) => {
+            enabledMedia.audio = true;
+            enabledMedia.video = true;
+            handleMediaUpdate(socket, rtcHandler, "local");
+        });
+
         return () => handlers.cleanup();
     });
 </script>
@@ -223,6 +259,8 @@
         {#if state.recording}
             Recording
         {/if}
+
+        <Login {data} />
     </div>
 
     <div class={showMessages ? "min-h-0" : "min-h-0 span-cols-2"}>
@@ -268,7 +306,7 @@
     .root {
         width: 100vw;
         height: 100vh;
-        grid-template-columns: 3.5fr minmax(14rem, 1fr);
+        grid-template-columns: 3.5fr minmax(16rem, 1fr);
         grid-template-rows: max-content 1fr max-content;
     }
 </style>

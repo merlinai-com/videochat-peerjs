@@ -38,6 +38,7 @@ export async function createRecordingHandler(
     callbacks: {
         upload_start: (arg: {
             mimeType: string;
+            is_screen: boolean;
         }) => Promise<{ id: JsonSafe<RecordingId> }>;
         upload_chunk: (id: JsonSafe<RecordingId>, data: ArrayBuffer) => void;
         upload_stop: (id: JsonSafe<RecordingId>) => void;
@@ -46,20 +47,21 @@ export async function createRecordingHandler(
     },
     signal: AbortSignal
 ): Promise<{
-    start: (localStream: MediaStream) => Promise<void>;
+    start: (streams: {
+        local?: MediaStream;
+        screen?: MediaStream;
+    }) => Promise<void>;
     stop: () => void;
 }> {
     // TODO: choose codecs
     const videoMimeTypes = ["video/webm", "video/ogg"];
     const mimeType = videoMimeTypes.find(MediaRecorder.isTypeSupported);
-    if (!mimeType) {
-        throw new Error("No support recorder MIME types");
-    }
+    if (!mimeType) throw new Error("No support recorder MIME types");
 
     const db = await initIndexedDb();
     let recordings: Recording[] = [];
 
-    let mediaRecorder: MediaRecorder | undefined;
+    let mediaRecorders = new Set<MediaRecorder>();
 
     const callbackQueue = new AsyncQueue<
         | {
@@ -85,50 +87,61 @@ export async function createRecordingHandler(
                 console.error(err);
         });
 
-    return {
-        async start(stream) {
-            const { id } = await callbacks.upload_start({ mimeType });
-            mediaRecorder = new MediaRecorder(stream, { mimeType });
-            const currentRecording = {
-                id,
-                startTime: new Date(),
-                blobs: [] as Blob[],
-            };
+    const startRecorder = async (stream: MediaStream, is_screen: boolean) => {
+        const { id } = await callbacks.upload_start({ mimeType, is_screen });
+        const recorder = new MediaRecorder(stream, { mimeType });
+        mediaRecorders.add(recorder);
+        const currentRecording = {
+            id,
+            startTime: new Date(),
+            blobs: [] as Blob[],
+        };
 
-            mediaRecorder.addEventListener("dataavailable", (ev) => {
-                if (ev.data.size > 0) {
-                    currentRecording.blobs.push(ev.data);
-                    callbackQueue.push({
-                        ev: "upload_chunk",
-                        id: currentRecording.id,
-                        data: ev.data.arrayBuffer(),
-                    });
-                }
-            });
-            mediaRecorder.addEventListener("stop", async () => {
-                mediaRecorder = undefined;
-                const recording = {
-                    id: currentRecording.id,
-                    startTime: currentRecording.startTime,
-                    blob: new Blob(currentRecording.blobs, {
-                        type: mimeType,
-                    }),
-                };
-                recordings.push(recording);
+        recorder.addEventListener("dataavailable", (ev) => {
+            if (ev.data.size > 0) {
+                currentRecording.blobs.push(ev.data);
                 callbackQueue.push({
-                    ev: "upload_stop",
+                    ev: "upload_chunk",
                     id: currentRecording.id,
+                    data: ev.data.arrayBuffer(),
                 });
-                callbacks.stop();
-                await saveRecording(db, recording);
+            }
+        });
+        recorder.addEventListener("stop", async () => {
+            mediaRecorders.delete(recorder);
+            const recording = {
+                id: currentRecording.id,
+                startTime: currentRecording.startTime,
+                blob: new Blob(currentRecording.blobs, {
+                    type: mimeType,
+                }),
+            };
+            recordings.push(recording);
+            callbackQueue.push({
+                ev: "upload_stop",
+                id: currentRecording.id,
             });
-            mediaRecorder.start(1000);
-            callbacks.start();
+            callbacks.stop();
+            await saveRecording(db, recording);
+        });
+        recorder.start(1000);
+        callbacks.start();
+    };
+
+    return {
+        async start(streams) {
+            const promises = [];
+            if (streams.local)
+                promises.push(startRecorder(streams.local, false));
+            if (streams.screen)
+                promises.push(startRecorder(streams.screen, true));
+            await Promise.all(promises);
         },
 
         stop() {
-            mediaRecorder?.stop();
-            mediaRecorder = undefined;
+            for (const recorder of mediaRecorders) {
+                recorder.stop();
+            }
         },
     };
 }
