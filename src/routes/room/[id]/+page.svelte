@@ -180,32 +180,24 @@
         };
 
         const recordingHandler = await createRecordingHandler(
+            socket,
+            streams,
+            ac.signal,
             {
-                async upload_start(arg) {
-                    const res = await socket.emitWithAck("upload_start", arg);
-                    if (res.error !== undefined) throw new Error(res.error);
-                    return res;
-                },
-                upload_chunk(id, data) {
-                    socket.emit("upload_chunk", id, data);
-                },
-                upload_stop(id) {
-                    socket.emit("upload_stop", id);
-                },
-                start() {
-                    console.log("recording start");
+                afterStart() {
                     state.recording = true;
                 },
-                stop() {
+                afterStop() {
                     state.recording = false;
                 },
-            },
-            ac.signal
+            }
         );
 
-        handlers.startRecording = () => recordingHandler.start(streams);
-        handlers.stopRecording = recordingHandler.stop;
-        handlers.cleanup = tap(handlers.cleanup, recordingHandler.stop);
+        handlers.startRecording = () => recordingHandler.start(true);
+        handlers.stopRecording = () => recordingHandler.stop(true);
+        handlers.cleanup = tap(handlers.cleanup, () =>
+            recordingHandler.stop(data.isOwner)
+        );
 
         return { rtcHandler, recordingHandler };
     }

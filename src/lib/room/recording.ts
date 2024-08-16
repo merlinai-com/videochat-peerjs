@@ -1,11 +1,17 @@
 import type { JsonSafe, RecordingId } from "backend/lib/database";
 import { AsyncQueue } from "backend/lib/queue";
+import type { RoomSocket } from "backend/lib/types";
 
 export type Recording = {
     blob: Blob;
     startTime: Date;
     id: JsonSafe<RecordingId>;
 };
+
+export interface RecordingHandler {
+    start: (emit: boolean) => Promise<void>;
+    stop: (emit: boolean) => void;
+}
 
 const videoStore = "video";
 
@@ -35,24 +41,14 @@ function saveRecording(db: IDBDatabase, recording: Recording): Promise<void> {
 }
 
 export async function createRecordingHandler(
+    socket: RoomSocket,
+    streams: { local?: MediaStream; screen?: MediaStream },
+    signal: AbortSignal,
     callbacks: {
-        upload_start: (arg: {
-            mimeType: string;
-            is_screen: boolean;
-        }) => Promise<{ id: JsonSafe<RecordingId> }>;
-        upload_chunk: (id: JsonSafe<RecordingId>, data: ArrayBuffer) => void;
-        upload_stop: (id: JsonSafe<RecordingId>) => void;
-        start: () => void;
-        stop: () => void;
-    },
-    signal: AbortSignal
-): Promise<{
-    start: (streams: {
-        local?: MediaStream;
-        screen?: MediaStream;
-    }) => Promise<void>;
-    stop: () => void;
-}> {
+        afterStart: () => void;
+        afterStop: () => void;
+    }
+): Promise<RecordingHandler> {
     // TODO: choose codecs
     const videoMimeTypes = ["video/webm", "video/ogg"];
     const mimeType = videoMimeTypes.find(MediaRecorder.isTypeSupported);
@@ -75,9 +71,9 @@ export async function createRecordingHandler(
         .consume(
             async (val) => {
                 if (val.ev === "upload_chunk") {
-                    callbacks.upload_chunk(val.id, await val.data);
+                    socket.emit("upload_chunk", val.id, await val.data);
                 } else {
-                    callbacks.upload_stop(val.id);
+                    socket.emit("upload_stop", val.id);
                 }
             },
             { signal }
@@ -88,7 +84,12 @@ export async function createRecordingHandler(
         });
 
     const startRecorder = async (stream: MediaStream, is_screen: boolean) => {
-        const { id } = await callbacks.upload_start({ mimeType, is_screen });
+        const { error, id } = await socket.emitWithAck("upload_start", {
+            mimeType,
+            is_screen,
+        });
+        if (error !== undefined) throw new Error(error);
+
         const recorder = new MediaRecorder(stream, { mimeType });
         mediaRecorders.add(recorder);
         const currentRecording = {
@@ -121,27 +122,40 @@ export async function createRecordingHandler(
                 ev: "upload_stop",
                 id: currentRecording.id,
             });
-            callbacks.stop();
             await saveRecording(db, recording);
         });
         recorder.start(1000);
-        callbacks.start();
     };
 
-    return {
-        async start(streams) {
+    const handlers: RecordingHandler = {
+        async start(emit) {
+            if (emit) socket.emit("recording", { action: "start" });
+
             const promises = [];
             if (streams.local)
                 promises.push(startRecorder(streams.local, false));
             if (streams.screen)
                 promises.push(startRecorder(streams.screen, true));
             await Promise.all(promises);
+
+            callbacks.afterStart();
         },
 
-        stop() {
+        stop(emit) {
+            if (emit) socket.emit("recording", { action: "stop" });
+
             for (const recorder of mediaRecorders) {
                 recorder.stop();
             }
+
+            callbacks.afterStop();
         },
     };
+
+    socket.on("recording", ({ action }) => {
+        if (action === "start") handlers.start(false);
+        else if (action === "stop") handlers.stop(false);
+    });
+
+    return handlers;
 }

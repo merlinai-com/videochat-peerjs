@@ -30,7 +30,7 @@ export function isSignalId(id: string): id is SignalId {
 
 export type RecordingEvent = (arg: {
     action: "start" | "stop";
-    from: UUID;
+    from: SignalId;
 }) => void;
 
 export interface RoomServerToClientEvents {
@@ -75,7 +75,7 @@ export interface RoomClientToServerEvents {
     screen_share: (arg: { streamId?: string }) => void;
 
     /** Start or stop recording */
-    recording: RecordingEvent;
+    recording: (arg: { action: "start" | "stop" }) => void;
 
     /** Start a recording */
     upload_start: (
