@@ -18,7 +18,6 @@
 {#if hasVideo}
     <video
         class={class_}
-        title={`id: ${stream.id}, labels: ${stream.getTracks().map(({ label }) => label)}`}
         bind:this={element}
         disablepictureinpicture
         on:contextmenu|preventDefault
