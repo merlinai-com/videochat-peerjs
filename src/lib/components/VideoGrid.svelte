@@ -30,8 +30,7 @@
 
     $: videos = getVideoLayouts(
         ...Object.values(peers).flatMap((streams) => [...streams]),
-        ...(streams.local ? [streams.local] : []),
-        ...(streams.screen ? [streams.screen] : [])
+        ...Object.values(streams).filter((stream) => stream)
     );
 
     let client = { width: 1, height: 1 };

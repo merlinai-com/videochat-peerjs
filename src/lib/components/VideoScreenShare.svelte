@@ -7,24 +7,16 @@
 
     $: videos = [
         ...Object.values(peers).flatMap((streams) => [...streams]),
-        ...(streams.local ? [streams.local] : []),
-        ...(streams.screen ? [streams.screen] : []),
+        ...Object.values(streams).filter((stream) => stream),
     ];
 
     $: nonScreenShare = videos.filter((stream) => stream.id !== screenShareId);
     $: screenShare = videos.find((stream) => stream.id === screenShareId);
-
-    $: style = `grid-template-columns: repeat(${nonScreenShare.length}, 1fr); grid-template-rows: min(max-content, 3fr) 1fr;`;
 </script>
 
-<div class="w-full h-full grid gap-3" {style}>
-    <div class="min-w-0 min-h-0 span-cols-all">
-        {#if screenShare}
-            <VideoPlayer class_="w-full h-full" stream={screenShare} />
-        {/if}
-    </div>
+<div class="w-full h-full grid gap-3 root">
     {#each nonScreenShare as stream (stream.id)}
-        <div class="min-w-0 min-h-0">
+        <div class="min-w-0 min-h-0 grid-">
             <VideoPlayer
                 class_="w-full h-full"
                 {stream}
@@ -32,4 +24,16 @@
             />
         </div>
     {/each}
+    <div class="span-cols-all min-h-0">
+        {#if screenShare}
+            <VideoPlayer class_="w-full h-full" stream={screenShare} />
+        {/if}
+    </div>
 </div>
+
+<style>
+    .root {
+        grid-template-columns: repeat(auto-fill, 1fr);
+        grid-template-rows: minmax(12rem, 1fr) auto;
+    }
+</style>
