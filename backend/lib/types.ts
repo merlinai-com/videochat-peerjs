@@ -79,7 +79,7 @@ export interface RoomClientToServerEvents {
 
     /** Start a recording */
     upload_start: (
-        arg: { mimeType: string },
+        arg: { mimeType: string; is_screen: boolean },
         callback: (
             arg:
                 | { id: JsonSafe<RecordingId>; error?: never }
@@ -98,6 +98,9 @@ export interface MessageServerToClientEvents {
 
     /** Information about some users */
     users: (us: { id: JsonSafe<UserId>; name?: string }[]) => void;
+
+    /** An error occured */
+    error: (event: keyof MessageClientToServerEvents, error: string) => void;
 }
 
 export interface MessageClientToServerEvents {
