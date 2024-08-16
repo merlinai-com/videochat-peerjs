@@ -20,6 +20,10 @@
     padding: 0.3rem;
 }
 
+.col-gap-3 {
+    column-gap: 0.3rem;
+}
+
 .gap-3 {
     gap: 0.3rem;
 }
@@ -30,6 +34,14 @@
 
 .overflow-auto {
     overflow: auto;
+}
+
+.overflow-y-auto {
+    overflow-y: auto;
+}
+
+.overflow-x-hidden {
+    overflow-x: hidden;
 }
 
 .grid {
@@ -54,12 +66,40 @@
     flex-direction: column;
 }
 
+.flex-wrap-reverse {
+    flex-wrap: wrap-reverse;
+}
+
+.flex-wrap {
+    flex-wrap: wrap;
+}
+
+.flex-self-right {
+    margin-left: auto;
+}
+
 .justify-end {
     justify-content: end;
 }
 
+.self-end {
+    justify-self: end;
+}
+
 .hidden {
     display: none;
+}
+
+.text-translucent {
+    opacity: 0.5;
+}
+
+.text-indent-hang-1 {
+    text-indent: 1em hanging;
+}
+
+.overflow-wrap-word {
+    overflow-wrap: break-word;
 }
 
 /* Reset */
