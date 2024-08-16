@@ -132,11 +132,14 @@
                     </b>
                     {message.content}
                 </span>
-                <span class="text-translucent self-end flex-self-right">
+                <time
+                    class="text-translucent self-end flex-self-right"
+                    datetime={message.sent_time}
+                >
                     {$dateFns.formatDistanceToNowStrict(message.sent_time, {
                         addSuffix: true,
                     })}
-                </span>
+                </time>
             </li>
         {/each}
     </ul>
