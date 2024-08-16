@@ -31,6 +31,7 @@ DEFINE FIELD complete ON recording TYPE bool DEFAULT false;
 -- The mime type
 DEFINE FIELD mimeType ON recording TYPE string;
 DEFINE FIELD startTime ON recording TYPE datetime;
+DEFINE FIELD is_screen ON recording TYPE bool;
 
 
 -- A room - ie a temporary group of users who are all in a call together
@@ -197,10 +198,12 @@ DEFINE FUNCTION fn::createRecording(
     $user: record<user>,
     $mimeType: string,
     $room: record<room>,
+    $is_screen: bool,
 ) {
     LET $recording = (CREATE recording:uuid() SET
         user = $user,
         mimeType = $mimeType,
+        is_screen = $is_screen,
         startTime = time::now()
     );
     LET $id = array::first($recording).id;

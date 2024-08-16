@@ -37,6 +37,7 @@ export type Recording = {
     user: UserId;
     mimeType: string;
     startTime: Date;
+    is_screen: boolean;
 };
 
 export type RoomId = RecordId<"room">;
@@ -74,6 +75,8 @@ type RecordUUID<T> = T extends RecordId<infer Tb> ? `${Tb}:${UUID}` : never;
 /** Replace {@link RecordId}s with {@link UUID} */
 export type JsonSafe<T> = T extends RecordId
     ? RecordUUID<T>
+    : T extends Date
+    ? string
     : T extends [...infer TS]
     ? { [K in keyof TS]: JsonSafe<TS[K]> }
     : T extends object
@@ -168,6 +171,8 @@ export class Database extends Emitter<{ user: [Action, User] }> {
         if (val === null) return null;
         // @ts-ignore
         if (val instanceof RecordId) return `${val.tb}:${val.id}`;
+        // @ts-ignore
+        if (val instanceof Date) return val.toISOString();
         // @ts-ignore
         else if (Array.isArray(val)) return val.map(Database.jsonSafe);
         else if (typeof val === "object") {
@@ -278,12 +283,14 @@ export class Database extends Emitter<{ user: [Action, User] }> {
         user: UserId;
         mimeType: string;
         room: RoomId;
+        is_screen: boolean;
     }): Promise<RecordingId> {
         return await this.run(
             "fn::createRecording",
             args.user,
             args.mimeType,
-            args.room
+            args.room,
+            args.is_screen
         );
     }
 
