@@ -5,6 +5,7 @@ import { expand } from "dotenv-expand";
 import { createServer } from "node:http";
 // import express from "express";
 import { injectSocketIO } from "./build/backend/index.js";
+
 expand(config());
 const { handler } = await import("./build/handler.js");
 
