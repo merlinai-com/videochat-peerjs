@@ -1,4 +1,5 @@
 import { compressionLevel, database, uploadDir } from "$lib/server";
+import { sso } from "$lib/server/sso";
 import { error } from "@sveltejs/kit";
 import {
     Database,
@@ -8,14 +9,13 @@ import {
     type Room,
     type UserId,
 } from "backend/lib/database";
+import { getUserNames } from "backend/lib/login";
+import { enumerate, kebabCase, snakeCase, uniq } from "backend/lib/utils";
 import { getUploadPath } from "backend/upload";
 import JSZip from "jszip";
 import * as fs from "node:fs/promises";
-import type { RequestHandler } from "./$types";
-import { enumerate, uniq } from "backend/lib/utils";
-import { sso } from "$lib/server/sso";
-import { getUserNames } from "backend/lib/login";
 import type { SSO } from "sso";
+import type { RequestHandler } from "./$types";
 
 /** Return the path to put the recording in the zip archive */
 function getZipPath(
@@ -30,10 +30,10 @@ function getZipPath(
     else console.warn(`Unrecognised MIME type: ${recording.mimeType}`);
 
     const name = nameCache[Database.jsonSafe(recording.user)] ?? "Unknown";
-
-    const idx = index.toString().padStart(digits, "0");
     const time = recording.startTime.toISOString().replace(":", ".");
-    return `${idx} ${name} ${time}${extension}`;
+    const screen = recording.is_screen ? "screenshare" : "";
+
+    return snakeCase([name, screen, time].map(kebabCase)) + extension;
 }
 
 async function createZipFile(
@@ -57,12 +57,15 @@ async function createZipFile(
     );
 
     for (const { value: recording, index } of enumerate(room.recordings)) {
+        const file = await fs.open(
+            getUploadPath(uploadDir, recording.id.id as string)
+        );
         zip.file(
             getZipPath(recording, nameCache, {
                 index: index + 1,
                 digits,
             }),
-            fs.readFile(getUploadPath(uploadDir, recording.id.id as string))
+            file.createReadStream()
         );
     }
 
@@ -78,7 +81,13 @@ export const GET: RequestHandler = async ({ params, locals }) => {
     if (!room) throw error(404, "Room not found");
     if (room.recordings.length === 0) throw error(404, "No recordings found");
 
-    const zip = await createZipFile(database, sso, room);
+    let zip;
+    try {
+        zip = await createZipFile(database, sso, room);
+    } catch (err) {
+        console.error(`While creating zip download for ${params.id}:`, err);
+        return error(500, "Internal error");
+    }
 
     const zipStream = zip.generateInternalStream({
         type: "uint8array",
@@ -87,11 +96,19 @@ export const GET: RequestHandler = async ({ params, locals }) => {
             level: compressionLevel,
         },
     });
+    zipStream.pause();
     const stream = new ReadableStream<Uint8Array>({
         start(controller) {
             zipStream.on("data", (data) => {
                 controller.enqueue(data);
                 zipStream.pause();
+            });
+            zipStream.on("error", (error) => {
+                console.error(
+                    `While creating zip download for ${params.id}:`,
+                    error
+                );
+                controller.close();
             });
             zipStream.on("end", () => controller.close());
         },
