@@ -1,4 +1,4 @@
-import type { RoomSocket, SignalId } from "backend/lib/types";
+import type { RoomSocket } from "backend/lib/types";
 import "webrtc-adapter";
 
 interface PeerState {
@@ -26,6 +26,7 @@ export function createRtcHandler(
     streams: MediaRecord,
     callbacks: {
         addStream: (id: string, stream: MediaStream) => void;
+        removeStream: (id: string, stream: MediaStream) => void;
         removePeer: (id: string) => void;
     },
     state: { connected: boolean }
@@ -86,6 +87,11 @@ export function createRtcHandler(
             track.addEventListener("unmute", () => {
                 for (const stream of streams) {
                     callbacks.addStream(id, stream);
+                }
+            });
+            track.addEventListener("ended", () => {
+                for (const stream of streams) {
+                    if (!stream.active) callbacks.removeStream(id, stream);
                 }
             });
         });
