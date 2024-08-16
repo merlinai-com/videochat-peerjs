@@ -31,6 +31,7 @@ export function createUploadSubscriber(
                 try {
                     await fs.appendFile(fp, data);
                 } catch (err) {
+                    // If the upload directory doesn't exist, then try to create it
                     if (
                         err instanceof Error &&
                         err.message.includes("ENOENT")
@@ -44,6 +45,10 @@ export function createUploadSubscriber(
             } else {
                 console.error("Not owner");
             }
+        },
+
+        async error(event, error) {
+            console.log(`While handling ${event}:`, error);
         },
     });
 }
