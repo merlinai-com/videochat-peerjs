@@ -11,6 +11,7 @@ import type {
     SocketData,
 } from "./lib/types.js";
 import { Publisher, type Listeners, type Subscriber } from "./publisher.js";
+import { injectErrorHandler } from "./errorHandler.js";
 
 export function initRoomNamespace(
     ns: Namespace<
@@ -23,6 +24,11 @@ export function initRoomNamespace(
     db: Database
 ) {
     ns.on("connect", async (socket) => {
+        injectErrorHandler(socket, (event, error) => {
+            console.error(`While handling ${event} for ${socket.id}:`, error);
+            socket.emit("error", "Internal error", event);
+        });
+
         const signalId =
             socket.data.signalId || `signal:${crypto.randomUUID()}`;
         socket.data.signalId = signalId;
@@ -129,7 +135,7 @@ export function initRoomNamespace(
             });
         });
 
-        socket.on("upload_start", async ({ mimeType }, callback) => {
+        socket.on("upload_start", async ({ mimeType, is_screen }, callback) => {
             if (!socket.data.user) return callback({ error: "Not logged in" });
             if (!socket.data.roomId)
                 return callback({ error: "join_room has not been called" });
@@ -137,6 +143,7 @@ export function initRoomNamespace(
                 user: socket.data.user.id,
                 mimeType,
                 room: socket.data.roomId,
+                is_screen,
             });
             callback({ id: Database.jsonSafe(id) });
             pub.publish(

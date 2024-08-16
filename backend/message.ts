@@ -11,6 +11,7 @@ import type {
     RoomSocketData,
 } from "./lib/types.js";
 import { type Listeners, Publisher, Subscriber } from "./publisher.js";
+import { injectErrorHandler } from "./errorHandler.js";
 
 export function initMessageNamespace(
     ns: Namespace<
@@ -24,6 +25,11 @@ export function initMessageNamespace(
     sso: SSO
 ) {
     ns.on("connection", (socket) => {
+        injectErrorHandler(socket, (event, error) => {
+            console.error(`While handling ${event} for ${socket.id}:`, error);
+            socket.emit("error", event, "Internal error");
+        });
+
         const seenMessages = socket.data.seenMessages ?? new Set();
         let sub: Subscriber<JsonSafe<GroupId>, PublisherEvents> | undefined;
 
@@ -58,15 +64,8 @@ export function initMessageNamespace(
 
         socket.on("send", async (arg, callback) => {
             // We have already seen this message
-            if (seenMessages.has(arg.msgId)) {
-                callback();
-                return;
-            }
-
-            if (!socket.data.user) {
-                callback("Not logged in");
-                return;
-            }
+            if (seenMessages.has(arg.msgId)) return callback();
+            if (!socket.data.user) return callback("Not logged in");
 
             try {
                 const m = await db.sendMessage(
@@ -83,7 +82,7 @@ export function initMessageNamespace(
 
                 callback();
             } catch (err) {
-                console.debug(err);
+                console.debug(`While handling send for ${socket.id}:`, err);
                 callback("Internal Error");
             }
         });
