@@ -1,7 +1,8 @@
 import { EventEmitter } from "node:events";
+import { injectErrorHandler } from "./errorHandler.js";
 
-interface ReservedEvents {
-    error: (error: Error, event: string, ...args: any) => void;
+interface ReservedEvents<ev extends Record<keyof ev, any>> {
+    error: (event: keyof ev, error: any) => void;
     unsubscribe: () => void;
 }
 
@@ -10,8 +11,9 @@ type EventMap<E> = {
 };
 
 export type Listeners<Id extends keyof E, E extends EventMap<E>> = {
-    [ev in keyof (E[Id] & ReservedEvents)]?: ev extends keyof ReservedEvents
-        ? ReservedEvents[ev]
+    [ev in keyof (E[Id] &
+        ReservedEvents<E[Id]>)]?: ev extends keyof ReservedEvents<E[Id]>
+        ? ReservedEvents<E[Id]>[ev]
         : E[Id][ev];
 };
 
@@ -19,15 +21,22 @@ export class Subscriber<
     Id extends keyof E,
     E extends EventMap<E>
 > extends EventEmitter<{
-    [ev in keyof E[Id] & ReservedEvents]: Parameters<
-        ev extends keyof ReservedEvents ? ReservedEvents[ev] : E[Id][ev]
+    [ev in keyof E[Id] & ReservedEvents<E[Id]>]: Parameters<
+        ev extends keyof ReservedEvents<E[Id]>
+            ? ReservedEvents<E[Id]>[ev]
+            : E[Id][ev]
     >;
 }> {
     pub: Publisher<E>;
     id: Id;
 
     constructor(pub: Publisher<E>, id: Id, listeners?: Listeners<Id, E>) {
-        super({ captureRejections: true });
+        super();
+        injectErrorHandler(this, function (event, error) {
+            // @ts-ignore
+            this.emit("error", event, error);
+        });
+
         this.pub = pub;
         this.id = id;
         if (listeners) {
@@ -42,15 +51,6 @@ export class Subscriber<
         // @ts-ignore
         this.emit("unsubscribe");
         this.pub._unsubscribe(this);
-    }
-
-    [EventEmitter.captureRejectionSymbol](
-        error: Error,
-        event: keyof object,
-        ...args: any[]
-    ) {
-        // @ts-ignore
-        this.emit("error", error, event, ...args);
     }
 
     /** Publish a message for this topic */
@@ -68,7 +68,7 @@ export class Publisher<E extends EventMap<E>> {
         this.subs = {};
     }
 
-    _getSubsFor<Id extends keyof E>(id: Id): Set<Subscriber<Id, E>> {
+    private getSubsFor<Id extends keyof E>(id: Id): Set<Subscriber<Id, E>> {
         this.subs[id] ??= new Set();
         return this.subs[id];
     }
@@ -79,12 +79,13 @@ export class Publisher<E extends EventMap<E>> {
         listeners?: Listeners<Id, E>
     ): Subscriber<Id, E> {
         const sub = new Subscriber(this, id, listeners);
-        this._getSubsFor(id).add(sub);
+        this.getSubsFor(id).add(sub);
         return sub;
     }
 
-    _unsubscribe(sub: Subscriber<keyof E, E>) {
-        const subs = this._getSubsFor(sub.id);
+    /** @private */
+    _unsubscribe<Id extends keyof E>(sub: Subscriber<Id, E>) {
+        const subs = this.getSubsFor(sub.id);
         subs.delete(sub);
         if (subs.size === 0) delete this.subs[sub.id];
     }
