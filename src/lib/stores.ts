@@ -1,4 +1,5 @@
-import { writable } from "svelte/store";
+import { browser } from "$app/environment";
+import { readable, writable, type Readable } from "svelte/store";
 
 function createStore<T>(
     store: Storage,
@@ -45,4 +46,32 @@ function createStore<T>(
     return s;
 }
 
+const defaultTimeStoreOptions = {
+    interval: 5 * 1000,
+} as const;
 
+/**
+ * Create a store that updates regularly.
+ * This is useful for time displays that need regular updating.
+ */
+export function createTimeStore<T>(
+    init: (old?: T) => T,
+    options?: Partial<typeof defaultTimeStoreOptions>
+): Readable<T> {
+    const opts = { ...defaultTimeStoreOptions, ...options };
+    let cancelled = false;
+    return readable(init(), (_set, update) => {
+        const upd = () => {
+            setTimeout(() => {
+                window.requestAnimationFrame(() => {
+                    if (!cancelled) {
+                        update(init);
+                        upd();
+                    }
+                });
+            }, opts.interval);
+        };
+
+        if (browser) upd();
+    });
+}

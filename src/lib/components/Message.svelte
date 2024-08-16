@@ -16,6 +16,13 @@
     import type { MessageSocket, UUID } from "backend/lib/types";
     import { onMount } from "svelte";
 
+    import { createTimeStore } from "$lib/stores";
+    import { formatDistanceToNowStrict } from "date-fns/formatDistanceToNowStrict";
+
+    const dateFns = createTimeStore(() => ({
+        formatDistanceToNowStrict,
+    }));
+
     /** The current user's ID */
     export let user: JsonSafe<User> | undefined;
     /** The currently selected group */
@@ -70,7 +77,7 @@
     function requestUsers() {
         let us = messages.flatMap((m) => (m.in in users ? [] : [m.in]));
         us = [...new Set(us)];
-        socket?.emit("request_users", us);
+        if (us.length > 0) socket?.emit("request_users", us);
     }
 
     onMount(() => {
@@ -114,15 +121,22 @@
             <button>Call</button>
         </form>
     {/if}
-    <ul class="flex-col overflow-auto min-h-0">
+    <ul class="flex-col overflow-y-auto overflow-x-hidden min-h-0 min-w-0">
         {#each messages as message}
-            <li>
-                <b
-                    >{message.in === user?.id
-                        ? "Me"
-                        : users[message.in] ?? message.in}:</b
-                >
-                <span>{message.content}</span>
+            <li class="flex-row col-gap-3 flex-wrap-reverse">
+                <span class="text-indent-hang-1 overflow-wrap-word">
+                    <b>
+                        {message.in === user?.id
+                            ? "Me"
+                            : users[message.in] ?? message.in}:
+                    </b>
+                    {message.content}
+                </span>
+                <span class="text-translucent self-end flex-self-right">
+                    {$dateFns.formatDistanceToNowStrict(message.sent_time, {
+                        addSuffix: true,
+                    })}
+                </span>
             </li>
         {/each}
     </ul>
@@ -133,6 +147,7 @@
                 content: messageContent,
                 msgId: crypto.randomUUID(),
             });
+            messageContent = "";
         }}
     >
         <input placeholder="Message" required bind:value={messageContent} />
