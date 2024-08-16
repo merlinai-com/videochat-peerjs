@@ -43,6 +43,7 @@
     "packageManager": "pnpm@8.15.5+sha1.a58c038faac410c947dbdb93eb30994037d0fce2",
     "dependencies": {
         "@socket.io/component-emitter": "^3.1.2",
+        "date-fns": "^3.6.0",
         "msgpackr": "^1.11.0",
         "socket.io-client": "^4.7.5",
         "socket.io-msgpack-parser": "^3.0.2",
