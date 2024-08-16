@@ -16,12 +16,18 @@ import JSZip from "jszip";
 import * as fs from "node:fs/promises";
 import type { SSO } from "sso";
 import type { RequestHandler } from "./$types";
+import { format } from "date-fns/format";
+
+/** Format a date in a format suitable for a path */
+function formatDate(date: Date): string {
+    return format(date, "yyyy-MM-dd_HH.mm.ss");
+}
 
 /** Return the path to put the recording in the zip archive */
 function getZipPath(
     recording: Recording,
     nameCache: Record<JsonSafe<UserId>, string | undefined>,
-    { index, digits }: { index: number; digits: number }
+    index: number
 ): string {
     let extension = "";
     if (recording.mimeType.startsWith("video/webm")) extension = ".webm";
@@ -30,10 +36,13 @@ function getZipPath(
     else console.warn(`Unrecognised MIME type: ${recording.mimeType}`);
 
     const name = nameCache[Database.jsonSafe(recording.user)] ?? "Unknown";
-    const time = recording.startTime.toISOString().replace(":", ".");
+    const time = formatDate(recording.startTime);
     const screen = recording.is_screen ? "screenshare" : "";
 
-    return snakeCase([name, screen, time].map(kebabCase)) + extension;
+    return (
+        snakeCase([name, screen, time, index.toString()].map(kebabCase)) +
+        extension
+    );
 }
 
 async function createZipFile(
@@ -42,7 +51,6 @@ async function createZipFile(
     room: Room<Group, Recording>
 ): Promise<JSZip> {
     const zip = new JSZip();
-    const digits = Math.floor(Math.log10(room.recordings.length)) + 1;
 
     const names = await getUserNames(
         db,
@@ -61,10 +69,7 @@ async function createZipFile(
             getUploadPath(uploadDir, recording.id.id as string)
         );
         zip.file(
-            getZipPath(recording, nameCache, {
-                index: index + 1,
-                digits,
-            }),
+            getZipPath(recording, nameCache, index),
             file.createReadStream()
         );
     }
@@ -124,7 +129,9 @@ export const GET: RequestHandler = async ({ params, locals }) => {
     return new Response(stream, {
         headers: {
             "Content-Type": "application/zip",
-            "Content-Disposition": `attachment; filename=${room.group.name} recordings.zip`,
+            "Content-Disposition": `attachment; filename=${
+                room.group.name
+            } recordings ${formatDate(new Date())}.zip`,
         },
     });
 };
