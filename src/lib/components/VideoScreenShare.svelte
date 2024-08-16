@@ -14,9 +14,12 @@
     $: screenShare = videos.find((stream) => stream.id === screenShareId);
 </script>
 
-<div class="w-full h-full grid gap-3 root">
+<div
+    class="w-full h-full grid gap-3 root"
+    style="grid-template-colums: repeat({nonScreenShare.length}, 1fr);"
+>
     {#each nonScreenShare as stream (stream.id)}
-        <div class="min-w-0 min-h-0 grid-">
+        <div class="min-w-0 min-h-0 grid-row-1">
             <VideoPlayer
                 class_="w-full h-full"
                 {stream}
@@ -33,7 +36,6 @@
 
 <style>
     .root {
-        grid-template-columns: repeat(auto-fill, 1fr);
         grid-template-rows: minmax(12rem, 1fr) auto;
     }
 </style>

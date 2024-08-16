@@ -35,13 +35,11 @@
 
     let client = { width: 1, height: 1 };
     $: layout = findBestLayout(client, videos);
-
-    $: style = `grid-template-columns: repeat(${layout.cols}, 1fr); grid-template-rows: repeat(${layout.rows}, 1fr);`;
 </script>
 
 <div
     class="w-full h-full grid gap-3"
-    {style}
+    style="grid-template-columns: repeat({layout.cols}, 1fr); grid-template-rows: repeat({layout.rows}, 1fr);"
     bind:clientWidth={client.width}
     bind:clientHeight={client.height}
 >
