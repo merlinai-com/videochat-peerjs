@@ -118,7 +118,9 @@ export function initRoomNamespace(
             leaveRoom();
         });
 
-        socket.on("recording", (arg) => roomSub?.publish("recording", arg));
+        socket.on("recording", (arg) =>
+            roomSub?.publish("recording", { ...arg, from: signalId })
+        );
 
         socket.on("screen_share", (arg) => {
             roomSub?.publish("screen_share", {
