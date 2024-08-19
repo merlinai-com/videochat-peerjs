@@ -1,6 +1,7 @@
 import { building } from "$app/environment";
 import { env } from "$env/dynamic/private";
 import { Database } from "backend/lib/database";
+import { getSize } from "backend/lib/utils";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
@@ -24,3 +25,8 @@ try {
 } catch (err) {
     iceServers = defaultIceServers;
 }
+
+export const attachmentLimits = {
+    guest: getSize(env, "GUEST_ATTACHMENT_LIMIT", "100k"),
+    sso: getSize(env, "SSO_ATTACHMENT_LIMIT", "100M"),
+};

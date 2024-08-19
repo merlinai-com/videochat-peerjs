@@ -127,3 +127,57 @@ export const bufferToUint8ArrayStream = new TransformStream<Buffer, Uint8Array>(
         },
     }
 );
+
+/* ==================
+Environment variables
+================== */
+
+/**
+ * Get an environment variable, throwing an error if it is undefined
+ */
+export function get(
+    env: Record<string, string | undefined>,
+    v: string,
+    def?: string
+): string {
+    if (env[v] === undefined) {
+        if (def !== undefined) return def;
+        else throw new Error(`$${v} must be set`);
+    }
+    return env[v];
+}
+
+/** A map from suffixes to the sizes they represent */
+const sizeSuffixes = {
+    b: 1,
+    k: 1e3,
+    M: 1e6,
+    G: 1e9,
+    T: 1e12,
+};
+
+type Size = `${number}${keyof typeof sizeSuffixes | ""}`;
+
+/**
+ * Get an environment variable as a number of bytes
+ */
+export function getSize(
+    env: Record<string, string | undefined>,
+    v: string,
+    def?: Size | number
+): number {
+    const str = get(env, v, def?.toString());
+    const suffix = str.at(-1);
+
+    let scale, value;
+    if (suffix && suffix in sizeSuffixes) {
+        scale = (sizeSuffixes as Record<string, number>)[suffix];
+        value = parseFloat(str.slice(0, str.length - 1));
+    } else {
+        scale = 1;
+        value = parseFloat(str);
+    }
+
+    if (isNaN(value)) throw new Error(`Set $${v} to a valid size`);
+    return Math.floor(scale * value);
+}

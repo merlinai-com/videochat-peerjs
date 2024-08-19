@@ -3,7 +3,7 @@ import { Namespace, Server } from "socket.io";
 import msgpackParser from "socket.io-msgpack-parser";
 import { SSO } from "sso";
 import type { HttpServer } from "vite";
-import { Database, get } from "./lib/database.js";
+import { Database } from "./lib/database.js";
 import { FileStore } from "./lib/file.js";
 import type {
     InterServerEvents,
@@ -20,6 +20,7 @@ import { Publisher } from "./publisher.js";
 import { initRoomNamespace } from "./room.js";
 import { loginMiddleware } from "./sso.js";
 import { createUploadSubscriber } from "./upload.js";
+import { get } from "./lib/utils.js";
 
 export async function injectSocketIO(
     server: HttpServer,

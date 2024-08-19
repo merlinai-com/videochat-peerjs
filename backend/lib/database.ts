@@ -7,6 +7,7 @@ import {
     UUID as SurrealUUID,
 } from "surrealdb.js";
 import type { UUID } from "./types.js";
+import { get } from "./utils.js";
 
 export type UserId = RecordId<"user">;
 export type User = {
@@ -86,16 +87,6 @@ export type JsonSafe<T> = T extends RecordId
     : T extends object
     ? { [K in keyof T]: JsonSafe<T[K]> }
     : T;
-
-export function get(
-    env: Record<string, string | undefined>,
-    v: string
-): string {
-    if (env[v] === undefined) {
-        throw new Error(`$${v} must be set`);
-    }
-    return env[v];
-}
 
 export class Database extends Emitter<{ user: [Action, User] }> {
     /** The surreal database */
