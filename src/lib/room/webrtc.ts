@@ -143,8 +143,10 @@ export function createRtcHandler(
         addStream(stream) {
             for (const peer of Object.values(peers)) {
                 for (const track of stream.getTracks()) {
-                    const sender = peer.conn.addTrack(track, stream);
-                    peer.senders.set(track, sender);
+                    if (!peer.senders.has(track)) {
+                        const sender = peer.conn.addTrack(track, stream);
+                        peer.senders.set(track, sender);
+                    }
                 }
             }
         },
