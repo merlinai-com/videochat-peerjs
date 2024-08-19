@@ -62,7 +62,6 @@ export class FileStore {
         return stream.pipeThrough(
             trackingStream({
                 async done() {
-                    console.log("close");
                     await handle.close();
                 },
             })

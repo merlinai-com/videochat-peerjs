@@ -164,14 +164,12 @@
     });
 
     function dropHandler(event: DragEvent) {
-        console.log(event);
         let files: (File | null)[] = [];
 
         if (event.dataTransfer?.items) {
             files = [...event.dataTransfer.items].map((item) =>
                 item.getAsFile()
             );
-            console.log(files);
         } else if (event.dataTransfer) {
             files = [...event.dataTransfer.files];
         }
@@ -180,7 +178,6 @@
     }
 
     function pasteHandler(event: ClipboardEvent) {
-        console.log(event);
         if (!event.clipboardData) return;
         let files = [...event.clipboardData.items].map((item) =>
             item.getAsFile()
@@ -299,7 +296,7 @@
 
                 <input
                     placeholder="Message"
-                    required
+                    required={message.attachments.length === 0}
                     bind:value={message.content}
                     on:paste={pasteHandler}
                 />
