@@ -19,6 +19,6 @@
     <PickName required={!data.ssoUser} user={data.user} />
 {/if}
 
-<CreateRoom user={data.ssoUser} />
+<!-- <CreateRoom user={data.ssoUser} /> -->
 
 <GroupSelector {data} {form} />
