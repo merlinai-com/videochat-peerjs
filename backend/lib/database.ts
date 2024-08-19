@@ -20,7 +20,7 @@ export type Attachment = {
     id: AttachmentId;
     file_id: UUID;
     name: string;
-    mimeType: string;
+    mime_type: string;
     group: GroupId;
 };
 

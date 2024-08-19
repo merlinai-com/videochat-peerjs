@@ -16,6 +16,18 @@
     min-height: 0;
 }
 
+.max-w-full {
+    max-width: 100%;
+}
+
+.max-w-8 {
+    max-width: 8rem;
+}
+
+.max-h-8 {
+    max-height: 8rem;
+}
+
 .p-3 {
     padding: 0.3rem;
 }

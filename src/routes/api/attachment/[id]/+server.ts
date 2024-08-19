@@ -11,7 +11,7 @@ export const GET: RequestHandler = async ({ params }) => {
 
     return new Response(stream, {
         headers: {
-            "Content-Type": attachment.mimeType,
+            "Content-Type": attachment.mime_type,
             "Content-Disposition": `attachment; filename=${attachment.name}`
         }
     })
