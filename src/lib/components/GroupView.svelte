@@ -141,25 +141,36 @@
         return () => socket.close();
     });
 
-    function dropHandler(event: DragEvent) {
-        if (!event.dataTransfer) return;
+    function addFileHandler(
+        event:
+            | DragEvent
+            | (Event & {
+                  currentTarget: HTMLInputElement;
+                  dataTransfer?: never;
+              })
+    ) {
+        let files: (File | null)[] = [];
 
-        let files;
-        if (event.dataTransfer.items) {
-            files = selectNonNull(
-                [...event.dataTransfer.items].map((item) => item.getAsFile())
+        if (event.dataTransfer && event.dataTransfer.items) {
+            files = [...event.dataTransfer.items].map((item) =>
+                item.getAsFile()
             );
-        } else {
+        } else if (event.dataTransfer) {
             files = [...event.dataTransfer.files];
+        } else if (
+            event.currentTarget instanceof HTMLInputElement &&
+            event.currentTarget.type == "file"
+        ) {
+            files = [...event.currentTarget.files!];
         }
 
-        message.attachments = [...message.attachments, ...files];
+        message.attachments = [...message.attachments, ...selectNonNull(files)];
     }
 </script>
 
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <div
-    on:drop|preventDefault={dropHandler}
+    on:drop|preventDefault={addFileHandler}
     on:dragover|preventDefault={() => console.log("File in drop zone")}
 >
     {#if selectedGroup}
@@ -248,8 +259,13 @@
                 <label class="button" role="button" for="file-selector">
                     Add attachment
                 </label>
-                <input id="file-selector" type="file" multiple />
-                <!-- File list -->
+                <input
+                    id="file-selector"
+                    type="file"
+                    multiple
+                    on:change={addFileHandler}
+                />
+
                 <input
                     placeholder="Message"
                     required
