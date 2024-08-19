@@ -1,5 +1,6 @@
 <script lang="ts">
-    import Message from "$lib/components/Message.svelte";
+    import GroupView from "$lib/components/GroupView.svelte";
+    import Login from "$lib/components/Login.svelte";
     import VideoGrid from "$lib/components/VideoGrid.svelte";
     import VideoScreenShare from "$lib/components/VideoScreenShare.svelte";
     import { createRecordingHandler, createRtcHandler } from "$lib/room";
@@ -8,8 +9,6 @@
     import type { RoomSocket } from "backend/lib/types";
     import { onMount } from "svelte";
     import type { PageData } from "./$types";
-    import { debug } from "$lib";
-    import Login from "$lib/components/Login.svelte";
 
     export let data: PageData;
 
@@ -17,7 +16,7 @@
     const enabledMedia = { video: false, audio: false, screen: false };
 
     /** Show group messages */
-    let showMessages = false;
+    let showMessages = true;
 
     /** The id of the current screen share*/
     let screenShareId: string | undefined;
@@ -34,9 +33,7 @@
         connect: () => {},
         startRecording: () => {},
         stopRecording: () => {},
-        cleanup: () => {
-            if (debug()) console.log("cleanup");
-        },
+        cleanup: () => {},
         toggleMedia: (_type: MediaType) => {},
     };
 
@@ -264,7 +261,7 @@
     </div>
 
     <div class={showMessages ? "flex-col min-h-0 justify-end" : "hidden"}>
-        <Message user={data.user} selectedGroup={data.group} />
+        <GroupView user={data.user} selectedGroup={data.group} />
     </div>
 
     {#if data.isOwner}
@@ -285,7 +282,7 @@
             <button disabled>Delete Recording</button>
             <button disabled>Save to Server</button>
             <a
-                href={`/api/room/${data.roomId.replace("room:", "")}/recording`}
+                href="/api/room/{data.roomId.replace('room:', '')}/recording"
                 target="_blank"
             >
                 Download recording

@@ -5,10 +5,15 @@ DEFINE FIELD sso_id ON user TYPE option<string>;
 DEFINE FIELD name ON user TYPE option<string>;
 DEFINE INDEX user__sso_id ON user FIELDS sso_id UNIQUE;
 
+
 -- An attachment to a message
 DEFINE TABLE attachment SCHEMAFULL TYPE NORMAL;
+-- The ID of the file
+DEFINE FIELD file_id ON attachment TYPE uuid;
 -- The file name
 DEFINE FIELD name ON attachment TYPE string;
+-- The MIME type of the file
+DEFINE FIELD mime_type ON attachment TYPE string;
 -- The group this was originally shared in
 DEFINE FIELD group ON attachment TYPE record<group>;
 
@@ -17,8 +22,8 @@ DEFINE FIELD group ON attachment TYPE record<group>;
 DEFINE TABLE message SCHEMAFULL TYPE RELATION FROM user TO group;
 -- The message content
 DEFINE FIELD content ON message TYPE string;
--- The attachment
-DEFINE FIELD attachment ON message TYPE option<record<attachment>>;
+-- Any attachments
+DEFINE FIELD attachments ON message TYPE array<record<attachment>>;
 -- The time the message was sent
 DEFINE FIELD sent_time ON message TYPE datetime;
 DEFINE INDEX message__out ON message FIELDS out;
@@ -32,6 +37,7 @@ DEFINE FIELD complete ON recording TYPE bool DEFAULT false;
 DEFINE FIELD mimeType ON recording TYPE string;
 DEFINE FIELD startTime ON recording TYPE datetime;
 DEFINE FIELD is_screen ON recording TYPE bool;
+DEFINE FIELD file_id ON recording TYPE uuid;
 
 
 -- A room - ie a temporary group of users who are all in a call together
@@ -157,15 +163,20 @@ DEFINE FUNCTION fn::getOrCreateP2PGroup($user1: record<user>, $user2: record<use
     };
 };
 
+-- Create an attachment
+DEFINE FUNCTION fn::createAttachment($file_id: uuid, $name: string, $mime_type: string, $group: record<group>) {
+    RETURN (CREATE ONLY attachment:uuid() SET file_id = $file_id, name = $name, mime_type = $mime_type, group = $group).id;
+};
+
 -- Send a message to a group
-DEFINE FUNCTION fn::sendMessage($from: record<user>, $to: record<group>, $content: string, $attachment: option<record<attachment>>) {
-    LET $message = array::first((RELATE $from->message->$to SET content = $content, attachment = $attachment, sent_time = time::now())).id;
-    RETURN (SELECT * FROM ONLY $message);
+DEFINE FUNCTION fn::sendMessage($from: record<user>, $to: record<group>, $content: string, $attachments: array<record<attachment>>) {
+    LET $message = array::first((RELATE $from->message->$to SET content = $content, attachments = $attachments, sent_time = time::now())).id;
+    RETURN (SELECT * FROM ONLY $message FETCH attachments[*]);
 };
 
 -- Get messages from a group
 DEFINE FUNCTION fn::getMessages($group: record<group>) {
-    RETURN (SELECT * FROM message WHERE out = $group ORDER BY sent_time);
+    RETURN (SELECT * FROM message WHERE out = $group ORDER BY sent_time FETCH attachments[*]);
 };
 
 -- Create a group
@@ -204,7 +215,8 @@ DEFINE FUNCTION fn::createRecording(
         user = $user,
         mimeType = $mimeType,
         is_screen = $is_screen,
-        startTime = time::now()
+        startTime = time::now(),
+        file_id = rand::uuid::v7()
     );
     LET $id = array::first($recording).id;
     UPDATE $room SET recordings += $id;

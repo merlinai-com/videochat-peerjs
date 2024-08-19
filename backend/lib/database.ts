@@ -17,7 +17,10 @@ export type User = {
 
 export type AttachmentId = RecordId<"attachment">;
 export type Attachment = {
+    id: AttachmentId;
+    file_id: UUID;
     name: string;
+    mimeType: string;
     group: GroupId;
 };
 
@@ -27,7 +30,7 @@ export type Message<A extends Attachment | AttachmentId = AttachmentId> = {
     in: UserId;
     out: UserId;
     content: string;
-    attachment?: A;
+    attachments: A[];
     sent_time: Date;
 };
 
@@ -38,6 +41,7 @@ export type Recording = {
     mimeType: string;
     startTime: Date;
     is_screen: boolean;
+    file_id: UUID;
 };
 
 export type RoomId = RecordId<"room">;
@@ -166,6 +170,15 @@ export class Database extends Emitter<{ user: [Action, User] }> {
         else return new RecordId(tb, id);
     }
 
+    static isRecord<Tb extends string>(tb: Tb, id: string): boolean {
+        try {
+            Database.parseRecord(tb, id);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
     static jsonSafe<T>(val: T): JsonSafe<T> {
         // @ts-ignore-start
         if (val === null) return null;
@@ -192,8 +205,14 @@ export class Database extends Emitter<{ user: [Action, User] }> {
         return Database.convert(res);
     }
 
-    async fetchAll(ids: UserId[]): Promise<User[]>;
-    async fetchAll(ids: RecordId[]): Promise<any[]> {
+    async select(id: RecordingId): Promise<Recording>;
+    async select(id: AttachmentId): Promise<Attachment>;
+    async select(id: RecordId): Promise<any> {
+        return Database.convert(await this.surreal.select(id));
+    }
+
+    async selectAll(ids: UserId[]): Promise<User[]>;
+    async selectAll(ids: RecordId[]): Promise<any[]> {
         return await this.run("fn::fetchAll", ids);
     }
 
@@ -243,16 +262,31 @@ export class Database extends Emitter<{ user: [Action, User] }> {
         return await this.run("fn::getOrCreateP2PGroup", user1, user2);
     }
 
+    async createAttachment(
+        file_id: UUID,
+        name: string,
+        mimeType: string,
+        group: GroupId
+    ): Promise<AttachmentId> {
+        return await this.run(
+            "fn::createAttachment",
+            SurrealUUID.parse(file_id),
+            name,
+            mimeType,
+            group
+        );
+    }
+
     async sendMessage(
         from: UserId,
         to: GroupId,
         content: string,
-        attachment?: AttachmentId
-    ): Promise<Message> {
+        attachment: AttachmentId[]
+    ): Promise<Message<Attachment>> {
         return await this.run("fn::sendMessage", from, to, content, attachment);
     }
 
-    async getMessages(group: GroupId): Promise<Message[]> {
+    async getMessages(group: GroupId): Promise<Message<Attachment>[]> {
         return await this.run("fn::getMessages", group);
     }
 
@@ -297,7 +331,7 @@ export class Database extends Emitter<{ user: [Action, User] }> {
     async isRecordingOwner(
         owner: UserId,
         recording: RecordingId
-    ): Promise<string | null> {
+    ): Promise<boolean> {
         return await this.run("fn::isRecordingOwner", owner, recording);
     }
 

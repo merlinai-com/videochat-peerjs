@@ -8,7 +8,7 @@
     import type { Group, JsonSafe } from "backend/lib/database";
     import { onMount } from "svelte";
     import type { ActionData, PageData } from "../../routes/$types";
-    import Message from "./Message.svelte";
+    import GroupView from "./GroupView.svelte";
 
     export let data: PageData;
     export let form: ActionData;
@@ -71,4 +71,4 @@
     {/if}
 </div>
 
-<Message user={data.user} {selectedGroup} controls />
+<GroupView user={data.user} {selectedGroup} controls />

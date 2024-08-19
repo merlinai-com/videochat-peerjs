@@ -71,7 +71,10 @@ export function initMessageNamespace(
                 const m = await db.sendMessage(
                     socket.data.user.id,
                     new RecordId("group", arg.groupId),
-                    arg.content
+                    arg.content,
+                    arg.attachments.map((id) =>
+                        Database.parseRecord("attachment", id)
+                    )
                 );
 
                 pub.publish(

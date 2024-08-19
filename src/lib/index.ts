@@ -9,7 +9,12 @@ export async function fetchJson<T>(
 ): Promise<T> {
     const res = await fetch(url, init);
     if (!res.ok) {
+        console.groupCollapsed(`Fetch error for ${url}`);
         console.debug(res);
+        if (res.bodyUsed) {
+            console.debug(res.text());
+        }
+        console.groupEnd();
         throw new Error(
             `Unable to fetch ${url}: ${res.status} ${res.statusText}`
         );

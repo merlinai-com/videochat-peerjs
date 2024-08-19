@@ -121,7 +121,7 @@ export async function getUserNames(
     userIds: UserId[]
 ): Promise<{ id: UserId; name?: string }[]> {
     const names = [];
-    const users = await db.fetchAll(userIds);
+    const users = await db.selectAll(userIds);
 
     // Users with a nickname
     names.push(...select(users, "name"));

@@ -1,5 +1,7 @@
 import type { User } from "sso";
 import type {
+    Attachment,
+    AttachmentId,
     User as DbUser,
     GroupId,
     JsonSafe,
@@ -94,7 +96,7 @@ export interface RoomClientToServerEvents {
 
 export interface MessageServerToClientEvents {
     /** Some messages from the server */
-    messages: (ms: JsonSafe<Message>[]) => void;
+    messages: (ms: JsonSafe<Message<Attachment>>[]) => void;
 
     /** Information about some users */
     users: (us: { id: JsonSafe<UserId>; name?: string }[]) => void;
@@ -115,7 +117,12 @@ export interface MessageClientToServerEvents {
 
     /** Send a message */
     send: (
-        arg: { groupId: JsonSafe<GroupId>; content: string; msgId: UUID },
+        arg: {
+            groupId: JsonSafe<GroupId>;
+            content: string;
+            msgId: UUID;
+            attachments: JsonSafe<AttachmentId>[];
+        },
         ack: (error?: string) => void
     ) => void;
 }
@@ -163,7 +170,7 @@ export interface RoomEvents {
 
 export interface GroupEvents {
     /** A message has been sent */
-    message: (message: JsonSafe<Message>) => void;
+    message: (message: JsonSafe<Message<Attachment>>) => void;
 
     /** Information about a user has been updated */
     user: (id: JsonSafe<UserId>, name?: string) => void;

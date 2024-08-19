@@ -12,11 +12,11 @@ import {
 import { getUserNames } from "backend/lib/login";
 import { enumerate, kebabCase, snakeCase, uniq } from "backend/lib/utils";
 import { getUploadPath } from "backend/upload";
+import { format } from "date-fns/format";
 import JSZip from "jszip";
 import * as fs from "node:fs/promises";
 import type { SSO } from "sso";
 import type { RequestHandler } from "./$types";
-import { format } from "date-fns/format";
 
 /** Format a date in a format suitable for a path */
 function formatDate(date: Date): string {

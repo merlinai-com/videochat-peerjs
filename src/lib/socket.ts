@@ -5,6 +5,11 @@ import msgpackParser from "socket.io-msgpack-parser";
 
 function initLogging(socket: Socket) {
     if (debug()) {
+        socket.on("connect", () =>
+            console.debug(
+                `Socket connected with transport: ${socket.io.engine.transport.name}`
+            )
+        );
         socket.onAny((...args) => console.debug("recv", args));
         socket.onAnyOutgoing((...args) => console.debug("emit", args));
     }
