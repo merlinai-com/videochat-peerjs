@@ -1,19 +1,18 @@
 import cookieParser from "cookie-parser";
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
 import { Namespace, Server } from "socket.io";
 import msgpackParser from "socket.io-msgpack-parser";
 import { SSO } from "sso";
 import type { HttpServer } from "vite";
 import { Database, get } from "./lib/database.js";
+import { FileStore } from "./lib/file.js";
 import type {
+    InterServerEvents,
     MessageClientToServerEvents,
     MessageServerToClientEvents,
-    RoomSocketData,
-    InterServerEvents,
     PublisherEvents,
     RoomClientToServerEvents,
     RoomServerToClientEvents,
+    RoomSocketData,
     SocketData,
 } from "./lib/types.js";
 import { initMessageNamespace } from "./message.js";
@@ -27,21 +26,15 @@ export async function injectSocketIO(
     env: Record<string, string | undefined>
 ) {
     const db = await Database.init(env);
-    const uploadDir = path.resolve(env.UPLOAD_DIRECTORY ?? "./uploads");
+    const fileStore = FileStore.init(env);
 
     const sso = new SSO(get(env, "SSO_ORIGIN"), {
         auth: { id: get(env, "SSO_ID"), key: get(env, "SSO_KEY") },
     });
 
-    try {
-        await fs.mkdir(uploadDir, { recursive: true });
-    } catch (err) {
-        console.error("Error creating upload directory:", err);
-    }
-
     const pub = new Publisher<PublisherEvents>();
 
-    createUploadSubscriber(db, pub, uploadDir);
+    createUploadSubscriber(db, pub, fileStore);
 
     // Initialise socket.io server
     const socketIO = new Server<{}, {}, InterServerEvents, SocketData>(server, {
