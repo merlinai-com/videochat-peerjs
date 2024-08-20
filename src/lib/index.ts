@@ -1,5 +1,3 @@
-// place files you want to import through the `$lib` alias in this folder.
-
 import { browser } from "$app/environment";
 
 export async function fetchJson<T>(
@@ -34,6 +32,18 @@ export function getOtherUser<U extends string | { id: string }>(
     return other;
 }
 
-export function debug(): boolean {
-    return browser && !!localStorage.getItem("debug");
+const debugTopics = ["socket/message", "socket/room"] as const;
+export type DebugTopic = (typeof debugTopics)[number];
+
+export function debug(topic: DebugTopic): boolean {
+    // If there's no access to localStorage, then no debug
+    if (!browser) return false;
+
+    const item = localStorage.getItem("debug");
+    // If debug is not set, then don't debug
+    if (item == null) return false;
+
+    /** The list of topics */
+    const topics = item.split(",");
+    return topics.some((t) => topic.startsWith(t));
 }

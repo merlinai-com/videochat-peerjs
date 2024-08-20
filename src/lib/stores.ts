@@ -50,6 +50,15 @@ const defaultTimeStoreOptions = {
     interval: 5 * 1000,
 } as const;
 
+/** A store which updates at regular intervals */
+interface TimeStore<T> extends Readable<T> {
+    /** Pause updates */
+    pause: () => void;
+
+    /** Resume updates */
+    resume: () => void;
+}
+
 /**
  * Create a store that updates regularly.
  * This is useful for time displays that need regular updating.
@@ -57,21 +66,46 @@ const defaultTimeStoreOptions = {
 export function createTimeStore<T>(
     init: (old?: T) => T,
     options?: Partial<typeof defaultTimeStoreOptions>
-): Readable<T> {
+): TimeStore<T> {
     const opts = { ...defaultTimeStoreOptions, ...options };
-    let cancelled = false;
-    return readable(init(), (_set, update) => {
-        const upd = () => {
-            setTimeout(() => {
+    let running = true;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let update: () => void;
+
+    const store = readable(init(), (_set, upd) => {
+        update = () => {
+            if (timeout) return;
+
+            timeout = setTimeout(() => {
                 window.requestAnimationFrame(() => {
-                    if (!cancelled) {
-                        update(init);
-                        upd();
+                    timeout = undefined;
+                    if (running) {
+                        upd(init);
+                        update();
                     }
                 });
             }, opts.interval);
         };
 
-        if (browser) upd();
+        if (browser) update();
+
+        return () => {
+            running = false;
+        };
     });
+
+    return {
+        subscribe: store.subscribe,
+        pause() {
+            if (timeout) clearTimeout(timeout);
+            timeout = undefined;
+            running = false;
+        },
+        resume() {
+            if (!running && browser) {
+                running = true;
+                update();
+            }
+        },
+    };
 }

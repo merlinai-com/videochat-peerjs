@@ -1,3 +1,5 @@
+import { intervalToDuration, type Duration, type Interval } from "date-fns";
+
 /* ================
 Callback operations
 ================ */
@@ -127,6 +129,32 @@ export const bufferToUint8ArrayStream = new TransformStream<Buffer, Uint8Array>(
         },
     }
 );
+
+/* ===========
+Time functions
+=========== */
+
+function timeSegment(x: number): string {
+    return x.toString().padStart(2, "0");
+}
+
+export function formatTime(duration: Duration | Interval): string {
+    if ("start" in duration && "end" in duration)
+        duration = intervalToDuration(duration);
+
+    if (duration.hours && duration.hours >= 1) {
+        return [
+            duration.hours.toString(),
+            timeSegment(duration.minutes ?? 0),
+            timeSegment(duration.seconds ?? 0),
+        ].join(":");
+    } else {
+        return [
+            timeSegment(duration.minutes ?? 0),
+            timeSegment(duration.seconds ?? 0),
+        ].join(":");
+    }
+}
 
 /* ==================
 Environment variables

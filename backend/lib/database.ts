@@ -48,12 +48,14 @@ export type Recording = {
 export type RoomId = RecordId<"room">;
 export type Room<
     G extends Group | GroupId = GroupId,
-    R extends Recording | RecordingId = RecordingId
+    R extends Recording | RecordingId = RecordingId,
+    U extends User | UserId = UserId
 > = {
     id: RoomId;
     group: G;
     recordings: R[];
     owner: UserId;
+    users: U[];
 };
 
 export type P2PGroup = {
@@ -299,6 +301,14 @@ export class Database extends Emitter<{ user: [Action, User] }> {
 
     async queryRoom(id: RoomId): Promise<Room<Group, Recording> | undefined> {
         return await this.run("fn::queryRoom", id);
+    }
+
+    async joinRoom(room: RoomId, user: UserId): Promise<void> {
+        await this.run("fn::joinRoom", room, user);
+    }
+
+    async leaveRoom(room: RoomId, user: UserId): Promise<void> {
+        await this.run("fn::leaveRoom", room, user);
     }
 
     /**

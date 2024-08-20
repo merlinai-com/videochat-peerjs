@@ -1,4 +1,4 @@
-import { EventsMap } from "@socket.io/component-emitter";
+import type { EventsMap } from "@socket.io/component-emitter";
 import type { EventEmitter } from "node:events";
 import type { Namespace, Socket } from "socket.io";
 
@@ -87,4 +87,15 @@ export function injectErrorHandler(
             createClosure(closures, handler, this, event, listener)
         );
     };
+}
+
+/** An error to show the user */
+export class UserError extends Error {
+    constructor(message: string) {
+        super(message);
+    }
+
+    toString() {
+        return this.message;
+    }
 }

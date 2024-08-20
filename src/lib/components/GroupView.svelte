@@ -135,7 +135,6 @@
     function addMessages(m: JsonSafe<Message<Attachment>>[]) {
         // TODO: add message ordering
         messages = mergeBy(messages, m, "sent_time");
-        console.log(messages);
     }
 
     function requestUsers() {

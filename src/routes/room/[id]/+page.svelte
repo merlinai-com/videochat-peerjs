@@ -9,6 +9,13 @@
     import type { RoomSocket } from "backend/lib/types";
     import { onMount } from "svelte";
     import type { PageData } from "./$types";
+    import type { JsonSafe, UserId } from "backend/lib/database";
+    import { createTimeStore } from "$lib/stores";
+    import { formatTime } from "backend/lib/utils";
+
+    const now = createTimeStore(() => new Date(), {
+        interval: 100,
+    });
 
     export let data: PageData;
 
@@ -21,8 +28,19 @@
     /** The id of the current screen share*/
     let screenShareId: string | undefined;
 
-    const state = { connected: false, recording: false };
+    const state = {
+        /** Is the user currently connected to the call*/
+        connected: false,
+        /** Is there currently a recording*/
+        recording: false,
+    };
+
+    /** The start time of the current recording */
+    let recordingStartTime = new Date();
+
     let videos: Record<string, Set<MediaStream>> = {};
+
+    let users: JsonSafe<{ id: UserId; name?: string }>[] = [];
 
     const tap = (f1: () => void, f2: () => void) => () => {
         f1();
@@ -143,10 +161,13 @@
             screenShareId = arg?.streamId;
         });
 
+        socket.on("users", (us) => (users = us));
+
         const rtcHandler = createRtcHandler(
             data.iceServers,
             socket,
             streams,
+            state,
             {
                 addStream(id, stream) {
                     videos[id] ??= new Set();
@@ -159,8 +180,7 @@
                     delete videos[id];
                     videos = videos;
                 },
-            },
-            state
+            }
         );
 
         handlers.cleanup = tap(handlers.cleanup, rtcHandler.disconnectAll);
@@ -169,9 +189,9 @@
         handlers.connect = () => {
             state.connected = !state.connected;
             if (state.connected) {
-                socket.emit("join_room", data.roomId);
+                socket.emit("connect_to");
             } else {
-                socket.emit("leave_room");
+                socket.emit("disconnect_from");
                 rtcHandler.disconnectAll();
             }
         };
@@ -183,9 +203,12 @@
             {
                 afterStart() {
                     state.recording = true;
+                    recordingStartTime = new Date();
+                    now.resume();
                 },
                 afterStop() {
                     state.recording = false;
+                    now.pause();
                 },
             }
         );
@@ -200,20 +223,24 @@
     }
 
     onMount(() => {
+        now.pause();
+
         const socket = room();
         handlers.cleanup = tap(handlers.cleanup, () => socket.close());
+
         init(socket).then(({ rtcHandler }) => {
             enabledMedia.audio = true;
             enabledMedia.video = true;
             handleMediaUpdate(socket, rtcHandler, "local");
         });
 
+        socket.emit("join_room", data.roomId);
         return () => handlers.cleanup();
     });
 </script>
 
 <div class="root overflow-hidden grid gap-3 p-3">
-    <div class="flex-row gap-3 span-cols-2">
+    <div class="flex-row gap-3 span-cols-2 flex-wrap">
         <nav>
             <a href="/">Zap</a>
         </nav>
@@ -246,10 +273,28 @@
             {/if}
         </button>
         {#if state.recording}
-            Recording
+            <span style="color: red;">
+                Recording ({formatTime({
+                    start: recordingStartTime,
+                    end: $now,
+                })})
+            </span>
         {/if}
 
         <Login {data} />
+
+        <div class="flex-row gap-3">
+            <h4>Users:</h4>
+            <ul class="flex-row gap-3">
+                {#each users as user, idx}
+                    {@const name =
+                        user.id == data.user?.id ? "Me" : user.name ?? "Guest"}
+                    <li>
+                        {idx == users.length - 1 ? name : name + ","}
+                    </li>
+                {/each}
+            </ul>
+        </div>
     </div>
 
     <div class={showMessages ? "min-h-0" : "min-h-0 span-cols-2"}>
@@ -282,6 +327,7 @@
             <button disabled>Delete Recording</button>
             <button disabled>Save to Server</button>
             <a
+                class="button"
                 href="/api/room/{data.roomId.replace('room:', '')}/recording"
                 target="_blank"
             >

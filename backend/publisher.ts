@@ -90,6 +90,9 @@ export class Publisher<E extends EventMap<E>> {
         if (subs.size === 0) delete this.subs[sub.id];
     }
 
+    /**
+     * Publish a message to all subscriber for an id and event
+     */
     publish<Id extends keyof E, Ev extends keyof E[Id]>(
         id: Id,
         ev: Ev,

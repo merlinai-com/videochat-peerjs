@@ -24,12 +24,12 @@ export function createRtcHandler(
     iceServers: RTCIceServer[],
     socket: RoomSocket,
     streams: MediaRecord,
+    state: { connected: boolean },
     callbacks: {
         addStream: (id: string, stream: MediaStream) => void;
         removeStream: (id: string, stream: MediaStream) => void;
         removePeer: (id: string) => void;
-    },
-    state: { connected: boolean }
+    }
 ): RtcHandler {
     const peers: Record<string, PeerState> = {};
     const rtcConfig: RTCConfiguration = { iceServers };
@@ -73,6 +73,8 @@ export function createRtcHandler(
     });
 
     socket.on("connect_to", ({ id, polite }) => {
+        if (!state.connected) return;
+
         // Initialise the peer connection
         const pc = (peers[id] ??= {
             conn: new RTCPeerConnection(rtcConfig),

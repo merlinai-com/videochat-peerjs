@@ -42,9 +42,14 @@ DEFINE FIELD file_id ON recording TYPE uuid;
 
 -- A room - ie a temporary group of users who are all in a call together
 DEFINE TABLE room TYPE NORMAL;
+-- The group this room was created in
 DEFINE FIELD group ON room TYPE record<group>;
+-- The recordings in this room
 DEFINE FIELD recordings ON room TYPE set<record<recording>>;
+-- The owner of this room - ie the person who started the call
 DEFINE FIELD owner ON room TYPE record<user>;
+-- The users who are currently connected to this room
+DEFINE FIELD users ON room TYPE set<record<user>>;
 
 
 -- A group of users who can all share messages
@@ -196,13 +201,21 @@ DEFINE FUNCTION fn::joinGroup($group: record<group>, $user: record<user>) {
 
 -- Create a temporary room from a group
 DEFINE FUNCTION fn::createRoom($group: record<group>, $owner: record<user>) {
-    LET $room = (CREATE room:uuid() SET group = $group, owner = $owner, recordings = []);
+    LET $room = (CREATE room:uuid() SET group = $group, owner = $owner, recordings = [], users = [$owner]);
     RETURN array::first($room).id;
 };
 
 -- Get information about a room
 DEFINE FUNCTION fn::queryRoom($id: record<room>) {
     RETURN (SELECT * FROM ONLY $id FETCH group, recordings[*]);
+};
+
+DEFINE FUNCTION fn::joinRoom($room: record<room>, $user: record<user>) {
+    UPDATE $room SET users += $user;
+};
+
+DEFINE FUNCTION fn::leaveRoom($room: record<room>, $user: record<user>) {
+    UPDATE $room SET users -= $user;
 };
 
 DEFINE FUNCTION fn::createRecording(

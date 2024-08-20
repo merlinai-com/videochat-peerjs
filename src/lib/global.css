@@ -123,19 +123,26 @@
 button,
 .button {
     font-size: smaller;
+    text-decoration: inherit;
+    color: inherit;
     border: 1px solid #0008;
     border-radius: 4px;
     padding: 0 0.2rem;
     background-color: #e9e9ed;
 }
 
-button:hover,
+button:disabled,
+.button:disabled {
+    color: rgb(from currentColor r g b / 0.6);
+}
+
+button:hover:not(:disabled),
 .button:hover {
     background-color: #d0d0d7;
 }
 
-button:active,
-.button:active {
+button:active:not(:disabled),
+.button:active:not(:disabled) {
     background-color: #b1b1b9;
 }
 

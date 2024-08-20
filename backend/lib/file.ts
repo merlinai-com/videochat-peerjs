@@ -1,8 +1,7 @@
-import { UUID } from "./types.js";
-import * as path from "node:path";
 import * as fs from "node:fs/promises";
-import TTLCache from "@isaacs/ttlcache";
-import { Writable, Readable } from "node:stream";
+import * as path from "node:path";
+import { Writable } from "node:stream";
+import type { UUID } from "./types.js";
 import { trackingStream } from "./utils.js";
 
 export class FileStore {

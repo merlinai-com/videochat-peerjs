@@ -6,7 +6,7 @@ import {
     type User as SsoUser,
 } from "sso";
 import { RecordId } from "surrealdb.js";
-import { Database, UserId, type User as DbUser } from "./database.js";
+import { Database, type UserId, type User as DbUser } from "./database.js";
 import { select } from "./utils.js";
 
 /** The max age for user ID cookie in days */

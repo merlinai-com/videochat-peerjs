@@ -43,7 +43,10 @@ export interface RoomServerToClientEvents {
         candidate?: RTCIceCandidate | null;
     }) => void;
 
-    /** A user connected */
+    /** The list of users currently in the room */
+    users: (us: JsonSafe<{ id: UserId; name?: string }>[]) => void;
+
+    /** A user connected, and each client should connect */
     connect_to: (arg: { id: SignalId; polite: boolean }) => void;
 
     /** A user disconnected */
@@ -67,8 +70,14 @@ export interface RoomClientToServerEvents {
         candidate?: RTCIceCandidate | null;
     }) => void;
 
-    /** Join a room */
+    /** Join a room without connecting */
     join_room: (id: JsonSafe<RoomId>) => void;
+
+    /** Connect to the call, after joining a room */
+    connect_to: () => void;
+
+    /** Disconnect from the call */
+    disconnect_from: () => void;
 
     /** Leave the current room */
     leave_room: () => void;
@@ -162,9 +171,15 @@ export type MessageSocket = import("socket.io-client").Socket<
 export type UserEvents = RoomServerToClientEvents;
 
 export interface RoomEvents {
-    join: (id: SignalId) => void;
-    leave: (id: SignalId) => void;
+    /** A user has connected to the call */
+    connected: (id: SignalId) => void;
+    /** A user has disconnected from the call */
+    disconnected: (id: SignalId) => void;
+    /** The list of users in the room has been updated */
+    users: (us: JsonSafe<{ id: UserId; name?: string }>[]) => void;
+    /** A screen share has started */
     screen_share: (arg: { user: SignalId; streamId?: string }) => void;
+    /** A recording should start or stop */
     recording: RecordingEvent;
 }
 

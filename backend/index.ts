@@ -51,11 +51,11 @@ export async function injectSocketIO(
         RoomClientToServerEvents,
         RoomServerToClientEvents,
         InterServerEvents,
-        SocketData
+        RoomSocketData
     > = socketIO.of("/room");
 
     roomNs.use(loginMiddleware(sso, db));
-    initRoomNamespace(roomNs, pub, db);
+    initRoomNamespace(roomNs, pub, db, sso);
 
     const messageNs: Namespace<
         MessageClientToServerEvents,

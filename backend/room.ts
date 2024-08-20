@@ -1,32 +1,47 @@
-import * as fs from "node:fs/promises";
 import { Namespace } from "socket.io";
+import { SSO } from "sso";
 import { RecordId } from "surrealdb.js";
+import { injectErrorHandler, UserError } from "./errorHandler.js";
 import { Database, type JsonSafe, type RoomId } from "./lib/database.js";
-import type {
-    SignalId,
-    InterServerEvents,
-    PublisherEvents,
-    RoomClientToServerEvents,
-    RoomServerToClientEvents,
-    SocketData,
+import { getUserNames } from "./lib/login.js";
+import {
+    isSignalId,
+    RoomSocketData,
+    type InterServerEvents,
+    type PublisherEvents,
+    type RoomClientToServerEvents,
+    type RoomServerToClientEvents,
+    type SignalId,
 } from "./lib/types.js";
 import { Publisher, type Listeners, type Subscriber } from "./publisher.js";
-import { injectErrorHandler } from "./errorHandler.js";
 
 export function initRoomNamespace(
     ns: Namespace<
         RoomClientToServerEvents,
         RoomServerToClientEvents,
         InterServerEvents,
-        SocketData
+        RoomSocketData
     >,
     pub: Publisher<PublisherEvents>,
-    db: Database
+    db: Database,
+    sso: SSO
 ) {
+    ns.use((socket, next) => {
+        if (!socket.data.user) next(new Error("Not logged in"));
+        else next();
+    });
+
     ns.on("connect", async (socket) => {
         injectErrorHandler(socket, (event, error) => {
-            console.error(`While handling ${event} for ${socket.id}:`, error);
-            socket.emit("error", "Internal error", event);
+            if (error instanceof UserError) {
+                socket.emit("error", error.message, event);
+            } else {
+                console.error(
+                    `While handling ${event} for ${socket.id}:`,
+                    error
+                );
+                socket.emit("error", "Internal error", event);
+            }
         });
 
         const signalId =
@@ -34,23 +49,27 @@ export function initRoomNamespace(
         socket.data.signalId = signalId;
 
         let roomSub: Subscriber<JsonSafe<RoomId>, PublisherEvents> | undefined;
-        let uploadFile: fs.FileHandle | undefined;
+        let connected = false;
 
-        const closeUploadFile = async () => {
-            if (uploadFile) {
-                const file = uploadFile;
-                uploadFile = undefined;
-                try {
-                    await file.close();
-                } catch (err) {
-                    console.error("Error closing uploadFile:", err);
-                }
-            }
+        const updateUsers = async () => {
+            if (!socket.data.roomId) throw new UserError("Not in a room");
+
+            const room = await db.queryRoom(socket.data.roomId);
+            if (!room)
+                throw new UserError(`Unknown room: ${socket.data.roomId}`);
+
+            roomSub?.publish(
+                "users",
+                Database.jsonSafe(await getUserNames(db, sso, room.users))
+            );
         };
 
         const roomListeners: Listeners<JsonSafe<RoomId>, PublisherEvents> = {
-            join(peerId) {
-                if (signalId !== peerId) {
+            users(us) {
+                socket.emit("users", us);
+            },
+            connected(peerId) {
+                if (connected && signalId !== peerId) {
                     socket.emit("connect_to", { id: peerId, polite: true });
                     pub.publish(peerId, "connect_to", {
                         id: signalId,
@@ -58,14 +77,13 @@ export function initRoomNamespace(
                     });
                 }
             },
-            leave(peerId) {
-                if (socket.data.signalId !== peerId) {
+            disconnected(peerId) {
+                if (connected && signalId !== peerId) {
                     socket.emit("disconnect_from", { id: peerId });
                 }
             },
             recording(act) {
-                if (act.from !== socket.data.signalId)
-                    socket.emit("recording", act);
+                if (act.from !== signalId) socket.emit("recording", act);
             },
             screen_share(arg) {
                 if (arg.user !== signalId) socket.emit("screen_share", arg);
@@ -87,7 +105,7 @@ export function initRoomNamespace(
             },
         };
 
-        const userSub = pub.subscribe(socket.data.signalId, userListeners);
+        const userSub = pub.subscribe(signalId, userListeners);
 
         if (socket.data.roomId) {
             roomSub = pub.subscribe(
@@ -96,26 +114,51 @@ export function initRoomNamespace(
             );
         }
 
-        const leaveRoom = () => {
-            if (socket.data.signalId)
-                roomSub?.publish("leave", socket.data.signalId);
+        const leaveRoom = async () => {
+            if (socket.data.roomId) {
+                await db.leaveRoom(socket.data.roomId, socket.data.user!.id);
+                await updateUsers();
+            }
+            socket.data.roomId = undefined;
+            roomSub?.publish("disconnected", signalId);
             roomSub?.unsubscribe();
+            connected = false;
         };
 
         socket.on("disconnect", () => {
             leaveRoom();
             userSub.unsubscribe();
-            closeUploadFile();
         });
 
-        socket.on("join_room", (roomId) => {
-            roomSub = pub.subscribe(roomId, roomListeners);
+        socket.on("join_room", async (roomId) => {
+            if (!Database.isRecord("room", roomId))
+                throw new UserError(`Not a room ID: ${roomId}`);
+
             socket.data.roomId = Database.parseRecord("room", roomId);
-            roomSub.publish("join", signalId);
+
+            roomSub = pub.subscribe(
+                Database.jsonSafe(socket.data.roomId),
+                roomListeners
+            );
+            await db.joinRoom(socket.data.roomId, socket.data.user!.id);
+
+            await updateUsers();
         });
 
         socket.on("leave_room", () => {
             leaveRoom();
+        });
+
+        socket.on("connect_to", () => {
+            if (!socket.data.roomId) throw new UserError("Not in a room");
+            roomSub?.publish("connected", signalId);
+            connected = true;
+        });
+
+        socket.on("disconnect_from", () => {
+            connected = false;
+            if (!socket.data.roomId) throw new UserError("Not in a room");
+            roomSub?.publish("disconnected", signalId);
         });
 
         socket.on("recording", (arg) =>
@@ -130,6 +173,8 @@ export function initRoomNamespace(
         });
 
         socket.on("signal", ({ to, desc, candidate }) => {
+            if (!isSignalId(to)) throw new UserError(`Not a signal ID: ${to}`);
+
             pub.publish(to, "signal", {
                 from: signalId,
                 desc,
@@ -158,8 +203,7 @@ export function initRoomNamespace(
         });
 
         socket.on("upload_chunk", (id, data) => {
-            if (!socket.data.user)
-                return socket.emit("error", "Not logged in", "upload_chunk");
+            if (!socket.data.user) throw new UserError("Not logged in");
 
             pub.publish(
                 "upload",
@@ -171,8 +215,7 @@ export function initRoomNamespace(
         });
 
         socket.on("upload_stop", async (id) => {
-            if (!socket.data.user)
-                return socket.emit("error", "Not logged in", "upload_stop");
+            if (!socket.data.user) throw new UserError("Not logged in");
 
             pub.publish(
                 "upload",
