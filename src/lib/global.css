@@ -94,6 +94,10 @@
     margin-left: auto;
 }
 
+.align-self-center {
+    align-self: center;
+}
+
 .justify-end {
     justify-content: end;
 }

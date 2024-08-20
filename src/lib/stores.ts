@@ -51,10 +51,11 @@ function createStore<T>(
 
 const defaultTimeStoreOptions = {
     interval: 5 * 1000,
-} as const;
+    start: true,
+};
 
 /** A store which updates at regular intervals */
-interface TimeStore<T> extends Readable<T> {
+export interface TimeStore<T> extends Readable<T> {
     /** Pause updates */
     pause: () => void;
 
@@ -71,7 +72,7 @@ export function createTimeStore<T>(
     options?: Partial<typeof defaultTimeStoreOptions>
 ): TimeStore<T> {
     const opts = { ...defaultTimeStoreOptions, ...options };
-    let running = true;
+    let running = opts.start;
     let timeout: ReturnType<typeof setTimeout> | undefined;
     let update: () => void;
 
@@ -90,7 +91,7 @@ export function createTimeStore<T>(
             }, opts.interval);
         };
 
-        if (browser) update();
+        if (browser && running) update();
 
         return () => {
             running = false;

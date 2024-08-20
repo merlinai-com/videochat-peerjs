@@ -1,4 +1,5 @@
-import { compressionLevel, database, uploadDir } from "$lib/server";
+import { compressionLevel, database } from "$lib/server";
+import { fileStore } from "$lib/server/file";
 import { sso } from "$lib/server/sso";
 import { error } from "@sveltejs/kit";
 import {
@@ -9,12 +10,12 @@ import {
     type Room,
     type UserId,
 } from "backend/lib/database";
+import type { FileStore } from "backend/lib/file";
 import { getUserNames } from "backend/lib/login";
 import { enumerate, kebabCase, snakeCase, uniq } from "backend/lib/utils";
-import { getUploadPath } from "backend/upload";
 import { format } from "date-fns/format";
 import JSZip from "jszip";
-import * as fs from "node:fs/promises";
+import { Readable } from "node:stream";
 import type { SSO } from "sso";
 import type { RequestHandler } from "./$types";
 
@@ -48,6 +49,7 @@ function getZipPath(
 async function createZipFile(
     db: Database,
     sso: SSO,
+    fileStore: FileStore,
     room: Room<Group, Recording>
 ): Promise<JSZip> {
     const zip = new JSZip();
@@ -65,12 +67,10 @@ async function createZipFile(
     );
 
     for (const { value: recording, index } of enumerate(room.recordings)) {
-        const file = await fs.open(
-            getUploadPath(uploadDir, recording.id.id as string)
-        );
+        const file = await fileStore.readableStream(recording.file_id);
         zip.file(
             getZipPath(recording, nameCache, index),
-            file.createReadStream()
+            Readable.fromWeb(file as any)
         );
     }
 
@@ -88,7 +88,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
     let zip;
     try {
-        zip = await createZipFile(database, sso, room);
+        zip = await createZipFile(database, sso, fileStore, room);
     } catch (err) {
         console.error(`While creating zip download for ${params.id}:`, err);
         return error(500, "Internal error");

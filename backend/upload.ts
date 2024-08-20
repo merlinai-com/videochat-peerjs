@@ -1,12 +1,7 @@
-import * as path from "node:path";
 import { Database } from "./lib/database.js";
 import { FileStore } from "./lib/file.js";
 import type { PublisherEvents } from "./lib/types.js";
 import type { Publisher, Subscriber } from "./publisher.js";
-
-export function getUploadPath(uploadDir: string, id: string): string {
-    return path.join(uploadDir, id);
-}
 
 export function createUploadSubscriber(
     db: Database,

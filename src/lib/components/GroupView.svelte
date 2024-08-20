@@ -6,11 +6,7 @@
     import { enhance } from "$app/forms";
     import { fetchJson } from "$lib";
     import { message as messageSocket } from "$lib/socket";
-    import {
-        createTimeStore,
-        createUserNamesStore,
-        type UserNameStore,
-    } from "$lib/stores";
+    import { createTimeStore, createUserNamesStore } from "$lib/stores";
     import type {
         Attachment,
         AttachmentId,
@@ -19,14 +15,13 @@
         JsonSafe,
         Message,
         User,
-        UserId,
     } from "backend/lib/database";
     import type { MessageSocket, UUID } from "backend/lib/types";
-    import { mergeBy, selectNonNull } from "backend/lib/utils";
+    import { groupBy, mergeBy, selectNonNull } from "backend/lib/utils";
+    import { format } from "date-fns/format";
     import { formatDistanceToNowStrict } from "date-fns/formatDistanceToNowStrict";
     import { onMount } from "svelte";
-    import AttachmentView from "./AttachmentView.svelte";
-    import { writable } from "svelte/store";
+    import MessageView from "./MessageView.svelte";
 
     const dateFns = createTimeStore(() => ({
         formatDistanceToNowStrict,
@@ -201,33 +196,21 @@
                 <button>Call</button>
             </form>
         {/if}
+
         <ul class="flex-col overflow-y-auto overflow-x-hidden min-h-0 min-w-0">
-            {#each messages as message}
-                <li class="flex-row col-gap-3 flex-wrap-reverse">
-                    <div class="min-w-0">
-                        <span class="text-indent-hang-1 overflow-wrap-word">
-                            <b>
-                                {message.in === user?.id
-                                    ? "Me"
-                                    : $users[message.in] ?? message.in}:
-                            </b>
-                            {message.content}
-                        </span>
-
-                        {#each message.attachments as attachment}
-                            <AttachmentView {attachment} />
-                        {/each}
-                    </div>
-
-                    <time
-                        class="text-translucent self-end flex-self-right"
-                        datetime={message.sent_time}
-                    >
-                        {$dateFns.formatDistanceToNowStrict(message.sent_time, {
-                            addSuffix: true,
-                        })}
-                    </time>
-                </li>
+            {#each groupBy( messages, (m) => format(m.sent_time, "d MMMM yyyy") ) as { key, values }}
+                <span class="align-self-center text-translucent">
+                    {key}
+                </span>
+                {#each values as message}
+                    <li class="flex-row col-gap-3 flex-wrap-reverse">
+                        <MessageView
+                            {message}
+                            userId={user?.id}
+                            users={$users}
+                        />
+                    </li>
+                {/each}
             {/each}
         </ul>
         <form

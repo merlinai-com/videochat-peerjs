@@ -159,20 +159,11 @@ function timeSegment(x: number): string {
     return x.toString().padStart(2, "0");
 }
 
-export function formatTime<DateType extends Date>(
-    duration: Duration | Interval | DateType | string | number
-): string {
-    if (
-        duration instanceof Date ||
-        typeof duration == "string" ||
-        typeof duration == "number"
-    ) {
-        duration = {
-            hours: getHours(duration),
-            minutes: getMinutes(duration),
-            seconds: getSeconds(duration),
-        };
-    } else if ("start" in duration && "end" in duration) {
+/**
+ * Format a duration or interval as a time.
+ */
+export function formatTime(duration: Duration | Interval): string {
+    if ("start" in duration && "end" in duration) {
         duration = intervalToDuration(duration);
     }
 
@@ -188,6 +179,28 @@ export function formatTime<DateType extends Date>(
             timeSegment(duration.seconds ?? 0),
         ].join(":");
     }
+}
+
+/**
+ * Group values by their day.
+ * Output is ordered by order each key first occurs in the input.
+ */
+export function groupBy<T, K>(
+    values: T[],
+    key: (val: T) => K
+): { key: K; values: T[] }[] {
+    const groups = new Map<K, T[]>();
+    for (const val of values) {
+        const k = key(val);
+        let group = groups.get(k);
+        if (!group) {
+            group = [];
+            groups.set(k, group);
+        }
+        group.push(val);
+    }
+    console.log(values, groups);
+    return [...groups].map(([key, values]) => ({ key, values }));
 }
 
 /* ==================
