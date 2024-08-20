@@ -1,3 +1,5 @@
+import { debug } from "$lib";
+import { ensureEmit } from "$lib/socket";
 import type { JsonSafe, RecordingId } from "backend/lib/database";
 import { AsyncQueue } from "backend/lib/queue";
 import type { RoomSocket } from "backend/lib/types";
@@ -10,7 +12,7 @@ export type Recording = {
 
 export interface RecordingHandler {
     start: (emit: boolean) => Promise<void>;
-    stop: (emit: boolean) => void;
+    stop: (emit: boolean) => Promise<void>;
 }
 
 const videoStore = "video";
@@ -45,6 +47,7 @@ export async function createRecordingHandler(
     socket: RoomSocket,
     streams: { local?: MediaStream; screen?: MediaStream },
     signal: AbortSignal,
+    state: { recording: boolean },
     callbacks: {
         afterStart: () => void;
         afterStop: () => void;
@@ -66,7 +69,7 @@ export async function createRecordingHandler(
               id: JsonSafe<RecordingId>;
               data: Promise<ArrayBuffer>;
           }
-        | { ev: "upload_stop"; id: JsonSafe<RecordingId> }
+        | { ev: "upload_stop"; id: JsonSafe<RecordingId>; count: number }
     >();
     callbackQueue
         .consume(
@@ -74,7 +77,7 @@ export async function createRecordingHandler(
                 if (val.ev === "upload_chunk") {
                     socket.emit("upload_chunk", val.id, await val.data);
                 } else {
-                    socket.emit("upload_stop", val.id);
+                    socket.emit("upload_stop", val.id, val.count);
                 }
             },
             { signal }
@@ -122,6 +125,7 @@ export async function createRecordingHandler(
             callbackQueue.push({
                 ev: "upload_stop",
                 id: currentRecording.id,
+                count: currentRecording.blobs.length,
             });
             await saveRecording(db, recording);
         });
@@ -130,7 +134,10 @@ export async function createRecordingHandler(
 
     const handlers: RecordingHandler = {
         async start(emit) {
-            if (emit) socket.emit("recording", { action: "start" });
+            if (state.recording == true) return;
+
+            if (emit)
+                await ensureEmit(socket, {}, "recording", { action: "start" });
 
             const promises = [];
             if (streams.local)
@@ -139,19 +146,25 @@ export async function createRecordingHandler(
                 promises.push(startRecorder(streams.screen, true));
             await Promise.all(promises);
 
+            state.recording = true;
             callbacks.afterStart();
         },
 
-        stop(emit) {
-            if (emit) socket.emit("recording", { action: "stop" });
+        async stop(emit) {
+            if (emit && state.recording)
+                await ensureEmit(socket, {}, "recording", { action: "stop" });
 
             for (const recorder of mediaRecorders) {
                 recorder.stop();
             }
 
+            state.recording = false;
             callbacks.afterStop();
         },
     };
+
+    // @ts-ignore
+    if (debug("recording/handlers")) window.$recordingHandlers = handlers;
 
     socket.on("recording", ({ action }) => {
         if (action === "start") handlers.start(false);

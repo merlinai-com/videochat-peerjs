@@ -199,7 +199,6 @@ export function groupBy<T, K>(
         }
         group.push(val);
     }
-    console.log(values, groups);
     return [...groups].map(([key, values]) => ({ key, values }));
 }
 

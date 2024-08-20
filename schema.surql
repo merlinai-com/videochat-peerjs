@@ -198,6 +198,10 @@ DEFINE FUNCTION fn::joinGroup($group: record<group>, $user: record<user>) {
     RELATE $user->in_group->$group;
 };
 
+DEFINE FUNCTION fn::isInGroup($group: record<group>, $user: record<user>) {
+    RETURN (SELECT )
+};
+
 -- Create a temporary room from a group
 DEFINE FUNCTION fn::createRoom($group: record<group>, $owner: record<user>) {
     LET $room = (CREATE room:uuid() SET group = $group, owner = $owner, recordings = [], users = [$owner]);

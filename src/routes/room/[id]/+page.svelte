@@ -211,6 +211,7 @@
             socket,
             streams,
             ac.signal,
+            state,
             {
                 afterStart() {
                     state.recording = true;

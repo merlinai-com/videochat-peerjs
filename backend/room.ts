@@ -194,9 +194,11 @@ export function initRoomNamespace(
             roomSub?.publish("disconnected", signalId);
         });
 
-        socket.on("recording", (arg) =>
-            roomSub?.publish("recording", { ...arg, from: signalId })
-        );
+        socket.on("recording", (arg, callback) => {
+            callback();
+            if (!roomSub) throw new Error("roomSub is not set");
+            roomSub.publish("recording", { ...arg, from: signalId });
+        });
 
         socket.on("screen_share", (arg) => {
             roomSub?.publish("screen_share", {

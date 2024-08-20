@@ -37,10 +37,7 @@ export type RecordingEvent = (arg: {
 }) => void;
 
 export interface RoomServerToClientEvents
-    extends Pick<
-        RoomEvents,
-        "users" | "recordings" | "recording" | "screen_share"
-    > {
+    extends Pick<RoomEvents, "users" | "recordings" | "screen_share"> {
     /** WebRTC signalling */
     signal: (arg: {
         from: SignalId;
@@ -53,6 +50,9 @@ export interface RoomServerToClientEvents
 
     /** A user disconnected */
     disconnect_from: (arg: { id: SignalId }) => void;
+
+    /** The recording should start or stop */
+    recording: RecordingEvent;
 
     /** An error occured */
     error: (message: string, cause?: keyof RoomClientToServerEvents) => void;
@@ -82,7 +82,10 @@ export interface RoomClientToServerEvents {
     screen_share: (arg: { streamId?: string }) => void;
 
     /** Start or stop recording */
-    recording: (arg: { action: "start" | "stop" }) => void;
+    recording: (
+        arg: { action: "start" | "stop" },
+        callback: () => void
+    ) => void;
 
     /** Start a recording */
     upload_start: (
@@ -96,7 +99,7 @@ export interface RoomClientToServerEvents {
     /** A chunk of a recording */
     upload_chunk: (id: JsonSafe<RecordingId>, data: ArrayBuffer) => void;
     /** Stop a recording */
-    upload_stop: (id: JsonSafe<RecordingId>) => void;
+    upload_stop: (id: JsonSafe<RecordingId>, count: number) => void;
 }
 
 export interface MessageServerToClientEvents {

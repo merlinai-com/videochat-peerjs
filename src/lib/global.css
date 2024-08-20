@@ -136,9 +136,18 @@ button,
     background-color: #e9e9ed;
 }
 
-button:disabled,
-.button:disabled {
-    color: rgb(from currentColor r g b / 0.6);
+@supports (color: rgb(from currentColor r g b / 0.6)) {
+    button:disabled,
+    .button:disabled {
+        color: rgb(from currentColor r g b / 0.6);
+    }
+}
+
+@supports not (color: rgb(from currentColor r g b / 0.6)) {
+    button:disabled,
+    .button:disabled {
+        color: rgb(0 0 0 / 0.6);
+    }
 }
 
 button:hover:not(:disabled),

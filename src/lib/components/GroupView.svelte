@@ -5,7 +5,7 @@
 <script lang="ts">
     import { enhance } from "$app/forms";
     import { fetchJson } from "$lib";
-    import { message as messageSocket } from "$lib/socket";
+    import { ensureEmit, message as messageSocket } from "$lib/socket";
     import { createTimeStore, createUserNamesStore } from "$lib/stores";
     import type {
         Attachment,
@@ -103,12 +103,7 @@
         groupId: JsonSafe<GroupId>;
         content: string;
         attachments: File[];
-        msgId: UUID;
     }) {
-        const timeoutStep = 1000;
-        const timeoutMax = 10000;
-        let timeout = 2000;
-
         const attachments: JsonSafe<AttachmentId>[] = [];
         for (const attachment of message.attachments) {
             attachments.push(
@@ -116,20 +111,11 @@
             );
         }
 
-        while (true) {
-            try {
-                await socket
-                    .timeout(timeout)
-                    .emitWithAck("send", { ...message, attachments });
-                return;
-            } catch (error) {
-                console.error(
-                    `Error when sending message with timeout: ${timeout}`,
-                    error
-                );
-                timeout = Math.min(timeout + timeoutStep, timeoutMax);
-            }
-        }
+        await ensureEmit(socket, {}, "send", {
+            ...message,
+            msgId: crypto.randomUUID(),
+            attachments,
+        });
     }
 
     function addMessages(m: JsonSafe<Message<Attachment>>[]) {
@@ -176,7 +162,11 @@
 </script>
 
 <!-- svelte-ignore a11y-no-static-element-interactions -->
-<div on:drop|preventDefault={dropHandler} on:dragover|preventDefault>
+<div
+    class="min-h-0 flex-col"
+    on:drop|preventDefault={dropHandler}
+    on:dragover|preventDefault
+>
     {#if selectedGroup}
         {#if controls}
             <h2>{title}</h2>
@@ -219,7 +209,6 @@
                 sendMessage({
                     ...message,
                     groupId: selectedGroup.id,
-                    msgId: crypto.randomUUID(),
                 });
                 message = { content: "", attachments: [] };
             }}
