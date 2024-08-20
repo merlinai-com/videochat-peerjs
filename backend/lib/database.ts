@@ -41,6 +41,7 @@ export type Recording = {
     user: UserId;
     mimeType: string;
     startTime: Date;
+    endTime?: Date;
     is_screen: boolean;
     file_id: UUID;
 };
@@ -92,9 +93,9 @@ export type JsonSafe<T> = T extends RecordId
 
 export class Database extends Emitter<{ user: [Action, User] }> {
     /** The surreal database */
-    surreal: Surreal;
+    private surreal: Surreal;
     /** The live queries */
-    live: {
+    private live: {
         user?: SurrealUUID;
     };
 
@@ -200,6 +201,7 @@ export class Database extends Emitter<{ user: [Action, User] }> {
 
     async select(id: RecordingId): Promise<Recording>;
     async select(id: AttachmentId): Promise<Attachment>;
+    async select(id: UserId): Promise<User>;
     async select(id: RecordId): Promise<any> {
         return Database.convert(await this.surreal.select(id));
     }

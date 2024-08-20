@@ -1,5 +1,8 @@
 import { browser } from "$app/environment";
-import { readable, writable, type Readable } from "svelte/store";
+import type { JsonSafe, UserId } from "backend/lib/database";
+import type { MessageSocket } from "backend/lib/types";
+import { uniq } from "backend/lib/utils";
+import { readable, writable, type Readable, type Writable } from "svelte/store";
 
 function createStore<T>(
     store: Storage,
@@ -106,6 +109,31 @@ export function createTimeStore<T>(
                 running = true;
                 update();
             }
+        },
+    };
+}
+
+export interface UserNameStore
+    extends Writable<Record<JsonSafe<UserId>, string | undefined>> {
+    request: (users: JsonSafe<UserId>[]) => void;
+}
+
+export function createUserNamesStore(socket?: MessageSocket): UserNameStore {
+    const map: Record<JsonSafe<UserId>, string | undefined> = {};
+    const store = writable(map);
+
+    socket?.on("users", (users) => {
+        for (const user of users) {
+            map[user.id] = user.name;
+        }
+        if (users.length > 0) store.set(map);
+    });
+
+    return {
+        ...store,
+        request(ids) {
+            ids = ids.filter((id) => map[id] == undefined);
+            if (ids.length > 0) socket?.emit("request_users", uniq(ids));
         },
     };
 }

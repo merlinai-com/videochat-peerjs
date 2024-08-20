@@ -1,8 +1,12 @@
 import { Namespace } from "socket.io";
 import { SSO } from "sso";
-import { RecordId } from "surrealdb.js";
 import { injectErrorHandler, UserError } from "./errorHandler.js";
-import { Database, type JsonSafe, type RoomId } from "./lib/database.js";
+import {
+    Database,
+    RecordingId,
+    type JsonSafe,
+    type RoomId,
+} from "./lib/database.js";
 import { getUserNames } from "./lib/login.js";
 import {
     isSignalId,
@@ -13,6 +17,7 @@ import {
     type RoomServerToClientEvents,
     type SignalId,
 } from "./lib/types.js";
+import { omit } from "./lib/utils.js";
 import { Publisher, type Listeners, type Subscriber } from "./publisher.js";
 
 export function initRoomNamespace(
@@ -50,23 +55,34 @@ export function initRoomNamespace(
 
         let roomSub: Subscriber<JsonSafe<RoomId>, PublisherEvents> | undefined;
         let connected = false;
+        const recordings = new Set<JsonSafe<RecordingId>>();
 
-        const updateUsers = async () => {
+        const updateRoom = async (type: "users" | "recordings") => {
             if (!socket.data.roomId) throw new UserError("Not in a room");
 
             const room = await db.queryRoom(socket.data.roomId);
             if (!room)
                 throw new UserError(`Unknown room: ${socket.data.roomId}`);
 
-            roomSub?.publish(
-                "users",
-                Database.jsonSafe(await getUserNames(db, sso, room.users))
-            );
+            if (type === "users") {
+                roomSub?.publish(
+                    "users",
+                    Database.jsonSafe(await getUserNames(db, sso, room.users))
+                );
+            } else {
+                roomSub?.publish(
+                    "recordings",
+                    Database.jsonSafe(omit(room.recordings, "file_id"))
+                );
+            }
         };
 
         const roomListeners: Listeners<JsonSafe<RoomId>, PublisherEvents> = {
             users(us) {
                 socket.emit("users", us);
+            },
+            recordings(rs) {
+                socket.emit("recordings", rs);
             },
             connected(peerId) {
                 if (connected && signalId !== peerId) {
@@ -117,7 +133,7 @@ export function initRoomNamespace(
         const leaveRoom = async () => {
             if (socket.data.roomId) {
                 await db.leaveRoom(socket.data.roomId, socket.data.user!.id);
-                await updateUsers();
+                await updateRoom("users");
             }
             socket.data.roomId = undefined;
             roomSub?.publish("disconnected", signalId);
@@ -125,9 +141,19 @@ export function initRoomNamespace(
             connected = false;
         };
 
-        socket.on("disconnect", () => {
+        socket.on("disconnect", async () => {
             leaveRoom();
             userSub.unsubscribe();
+
+            if (socket.data.user) {
+                for (const id of recordings) {
+                    recordings.delete(id);
+                    await db.finishRecording(
+                        socket.data.user.id,
+                        Database.parseRecord("recording", id)
+                    );
+                }
+            }
         });
 
         socket.on("join_room", async (roomId) => {
@@ -136,13 +162,20 @@ export function initRoomNamespace(
 
             socket.data.roomId = Database.parseRecord("room", roomId);
 
+            const room = await db.queryRoom(socket.data.roomId);
+            if (!room) throw new UserError(`Unknown room: ${roomId}`);
+
             roomSub = pub.subscribe(
                 Database.jsonSafe(socket.data.roomId),
                 roomListeners
             );
             await db.joinRoom(socket.data.roomId, socket.data.user!.id);
 
-            await updateUsers();
+            await updateRoom("users");
+            socket.emit(
+                "recordings",
+                Database.jsonSafe(omit(room.recordings, "file_id"))
+            );
         });
 
         socket.on("leave_room", () => {
@@ -192,6 +225,7 @@ export function initRoomNamespace(
                 room: socket.data.roomId,
                 is_screen,
             });
+            recordings.add(Database.jsonSafe(id));
             callback({ id: Database.jsonSafe(id) });
             pub.publish(
                 "upload",
@@ -200,6 +234,7 @@ export function initRoomNamespace(
                 Database.jsonSafe(id),
                 mimeType
             );
+            await updateRoom("recordings");
         });
 
         socket.on("upload_chunk", (id, data) => {
@@ -223,10 +258,12 @@ export function initRoomNamespace(
                 Database.jsonSafe(socket.data.user.id),
                 id
             );
+            recordings.delete(id);
             await db.finishRecording(
                 socket.data.user.id,
-                new RecordId("recording", id)
+                Database.parseRecord("recording", id)
             );
+            await updateRoom("recordings");
         });
     });
 }

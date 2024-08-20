@@ -6,7 +6,11 @@
     import { enhance } from "$app/forms";
     import { fetchJson } from "$lib";
     import { message as messageSocket } from "$lib/socket";
-    import { createTimeStore } from "$lib/stores";
+    import {
+        createTimeStore,
+        createUserNamesStore,
+        type UserNameStore,
+    } from "$lib/stores";
     import type {
         Attachment,
         AttachmentId,
@@ -22,6 +26,7 @@
     import { formatDistanceToNowStrict } from "date-fns/formatDistanceToNowStrict";
     import { onMount } from "svelte";
     import AttachmentView from "./AttachmentView.svelte";
+    import { writable } from "svelte/store";
 
     const dateFns = createTimeStore(() => ({
         formatDistanceToNowStrict,
@@ -35,13 +40,13 @@
     export let controls = false;
 
     let socket: MessageSocket;
+    let users = createUserNamesStore();
 
     $: title =
         selectedGroup &&
         (selectedGroup.type == "group" ? selectedGroup.name : "P2P");
     // : getOtherUser(selectedGroup.users, data.user?.email).email);
 
-    let users: Record<JsonSafe<UserId>, string | undefined> = {};
     let messages: JsonSafe<Message<Attachment>>[] = [];
 
     /** The message that's currently being edited*/
@@ -137,12 +142,6 @@
         messages = mergeBy(messages, m, "sent_time");
     }
 
-    function requestUsers() {
-        let us = messages.flatMap((m) => (m.in in users ? [] : [m.in]));
-        us = [...new Set(us)];
-        if (us.length > 0) socket.emit("request_users", us);
-    }
-
     onMount(() => {
         socket = messageSocket();
 
@@ -150,14 +149,10 @@
             if (!selectedGroup) return;
 
             addMessages(ms);
-            requestUsers();
+            users.request(messages.map((m) => m.in));
         });
 
-        socket.on("users", (us) => {
-            for (const u of us) {
-                users[u.id] = u.name;
-            }
-        });
+        users = createUserNamesStore(socket);
 
         return () => socket.close();
     });
@@ -214,7 +209,7 @@
                             <b>
                                 {message.in === user?.id
                                     ? "Me"
-                                    : users[message.in] ?? message.in}:
+                                    : $users[message.in] ?? message.in}:
                             </b>
                             {message.content}
                         </span>

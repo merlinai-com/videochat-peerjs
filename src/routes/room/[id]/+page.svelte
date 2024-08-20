@@ -5,13 +5,18 @@
     import VideoScreenShare from "$lib/components/VideoScreenShare.svelte";
     import { createRecordingHandler, createRtcHandler } from "$lib/room";
     import type { MediaType, RtcHandler } from "$lib/room/webrtc";
-    import { room } from "$lib/socket";
+    import { message, room } from "$lib/socket";
     import type { RoomSocket } from "backend/lib/types";
     import { onMount } from "svelte";
     import type { PageData } from "./$types";
-    import type { JsonSafe, UserId } from "backend/lib/database";
-    import { createTimeStore } from "$lib/stores";
+    import type { JsonSafe, Recording, UserId } from "backend/lib/database";
+    import {
+        createTimeStore,
+        createUserNamesStore,
+        type UserNameStore,
+    } from "$lib/stores";
     import { formatTime } from "backend/lib/utils";
+    import { format } from "date-fns/format";
 
     const now = createTimeStore(() => new Date(), {
         interval: 100,
@@ -40,7 +45,13 @@
 
     let videos: Record<string, Set<MediaStream>> = {};
 
+    /** The list of users currently in the room */
     let users: JsonSafe<{ id: UserId; name?: string }>[] = [];
+
+    /** The list of recordings */
+    let recordings: JsonSafe<Omit<Recording, "file_id">>[] = [];
+
+    let userNameStore = createUserNamesStore();
 
     const tap = (f1: () => void, f2: () => void) => () => {
         f1();
@@ -162,6 +173,10 @@
         });
 
         socket.on("users", (us) => (users = us));
+        socket.on("recordings", (rs) => {
+            recordings = rs;
+            userNameStore.request(recordings.map((r) => r.user));
+        });
 
         const rtcHandler = createRtcHandler(
             data.iceServers,
@@ -227,6 +242,8 @@
 
         const socket = room();
         handlers.cleanup = tap(handlers.cleanup, () => socket.close());
+
+        userNameStore = createUserNamesStore(message());
 
         init(socket).then(({ rtcHandler }) => {
             enabledMedia.audio = true;
@@ -310,7 +327,7 @@
     </div>
 
     {#if data.isOwner}
-        <div class="flex-row gap-3 span-cols-2">
+        <div class="flex-row flex-wrap gap-3 span-cols-2">
             <button
                 disabled={state.recording || !state.connected}
                 on:click={handlers.startRecording}
@@ -323,9 +340,6 @@
             >
                 Stop Recording
             </button>
-            <button disabled>Save Recording</button>
-            <button disabled>Delete Recording</button>
-            <button disabled>Save to Server</button>
             <a
                 class="button"
                 href="/api/room/{data.roomId.replace('room:', '')}/recording"
@@ -333,6 +347,24 @@
             >
                 Download recording
             </a>
+            {#if recordings.length > 0}
+                <div class="flex-row gap-3 flex-wrap">
+                    <h4>Recordings</h4>
+                    <ul class="flex-row gap-3">
+                        {#each recordings as recording}
+                            <li>
+                                {$userNameStore[recording.user] ?? "Unknown"} (Start:
+                                {formatTime(recording.startTime)}, Duration: {formatTime(
+                                    {
+                                        start: recording.startTime,
+                                        end: recording.endTime ?? $now,
+                                    }
+                                )})
+                            </li>
+                        {/each}
+                    </ul>
+                </div>
+            {/if}
         </div>
     {/if}
 </div>

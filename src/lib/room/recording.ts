@@ -14,6 +14,7 @@ export interface RecordingHandler {
 }
 
 const videoStore = "video";
+const uploadInterval = 100;
 
 function initIndexedDb(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
@@ -124,7 +125,7 @@ export async function createRecordingHandler(
             });
             await saveRecording(db, recording);
         });
-        recorder.start(1000);
+        recorder.start(uploadInterval);
     };
 
     const handlers: RecordingHandler = {

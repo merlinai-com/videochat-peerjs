@@ -6,6 +6,7 @@ import type {
     GroupId,
     JsonSafe,
     Message,
+    Recording,
     RecordingId,
     RoomId,
     UserId,
@@ -35,7 +36,11 @@ export type RecordingEvent = (arg: {
     from: SignalId;
 }) => void;
 
-export interface RoomServerToClientEvents {
+export interface RoomServerToClientEvents
+    extends Pick<
+        RoomEvents,
+        "users" | "recordings" | "recording" | "screen_share"
+    > {
     /** WebRTC signalling */
     signal: (arg: {
         from: SignalId;
@@ -43,20 +48,11 @@ export interface RoomServerToClientEvents {
         candidate?: RTCIceCandidate | null;
     }) => void;
 
-    /** The list of users currently in the room */
-    users: (us: JsonSafe<{ id: UserId; name?: string }>[]) => void;
-
     /** A user connected, and each client should connect */
     connect_to: (arg: { id: SignalId; polite: boolean }) => void;
 
     /** A user disconnected */
     disconnect_from: (arg: { id: SignalId }) => void;
-
-    /** A recording should start or stop */
-    recording: RecordingEvent;
-
-    /** A screen share has started or stopped */
-    screen_share: (arg: { user: SignalId; streamId?: string }) => void;
 
     /** An error occured */
     error: (message: string, cause?: keyof RoomClientToServerEvents) => void;
@@ -177,6 +173,8 @@ export interface RoomEvents {
     disconnected: (id: SignalId) => void;
     /** The list of users in the room has been updated */
     users: (us: JsonSafe<{ id: UserId; name?: string }>[]) => void;
+    /** The list of recordings has been updated */
+    recordings: (rs: JsonSafe<Omit<Recording, "file_id">>[]) => void;
     /** A screen share has started */
     screen_share: (arg: { user: SignalId; streamId?: string }) => void;
     /** A recording should start or stop */

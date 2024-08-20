@@ -1,4 +1,7 @@
 import { intervalToDuration, type Duration, type Interval } from "date-fns";
+import { getHours } from "date-fns/getHours";
+import { getMinutes } from "date-fns/getMinutes";
+import { getSeconds } from "date-fns/getSeconds";
 
 /* ================
 Callback operations
@@ -34,6 +37,24 @@ export function select<T extends object, K extends keyof T>(
     }
 
     return vals.filter<T & Record<K, NonNullable<T[K]>>>(check);
+}
+
+/**
+ * Remove the given key(s) from a list of objects.
+ * This does not modify any of the original values.
+ */
+export function omit<T extends object, K extends keyof T>(
+    vals: T[],
+    keys: K | K[]
+): Omit<T, K>[] {
+    if (!Array.isArray(keys)) keys = [keys];
+    return vals.map((val) => {
+        const v = { ...val };
+        keys.forEach((key) => {
+            delete v[key];
+        });
+        return v;
+    });
 }
 
 export function enumerate<T>(vals: T[]): { index: number; value: T }[] {
@@ -138,9 +159,22 @@ function timeSegment(x: number): string {
     return x.toString().padStart(2, "0");
 }
 
-export function formatTime(duration: Duration | Interval): string {
-    if ("start" in duration && "end" in duration)
+export function formatTime<DateType extends Date>(
+    duration: Duration | Interval | DateType | string | number
+): string {
+    if (
+        duration instanceof Date ||
+        typeof duration == "string" ||
+        typeof duration == "number"
+    ) {
+        duration = {
+            hours: getHours(duration),
+            minutes: getMinutes(duration),
+            seconds: getSeconds(duration),
+        };
+    } else if ("start" in duration && "end" in duration) {
         duration = intervalToDuration(duration);
+    }
 
     if (duration.hours && duration.hours >= 1) {
         return [

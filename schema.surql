@@ -32,10 +32,9 @@ DEFINE INDEX message__out ON message FIELDS out;
 -- A single chunk of recording, as a standalone file with metadata
 DEFINE TABLE recording TYPE NORMAL;
 DEFINE FIELD user ON recording TYPE record<user>;
-DEFINE FIELD complete ON recording TYPE bool DEFAULT false;
--- The mime type
 DEFINE FIELD mimeType ON recording TYPE string;
 DEFINE FIELD startTime ON recording TYPE datetime;
+DEFINE FIELD endTime ON recording TYPE option<datetime>;
 DEFINE FIELD is_screen ON recording TYPE bool;
 DEFINE FIELD file_id ON recording TYPE uuid;
 
@@ -211,11 +210,11 @@ DEFINE FUNCTION fn::queryRoom($id: record<room>) {
 };
 
 DEFINE FUNCTION fn::joinRoom($room: record<room>, $user: record<user>) {
-    UPDATE $room SET users += $user;
+    UPDATE ONLY $room SET users += $user;
 };
 
 DEFINE FUNCTION fn::leaveRoom($room: record<room>, $user: record<user>) {
-    UPDATE $room SET users -= $user;
+    UPDATE ONLY $room SET users -= $user;
 };
 
 DEFINE FUNCTION fn::createRecording(
@@ -224,16 +223,15 @@ DEFINE FUNCTION fn::createRecording(
     $room: record<room>,
     $is_screen: bool,
 ) {
-    LET $recording = (CREATE recording:uuid() SET
+    LET $recording = (CREATE ONLY recording:uuid() SET
         user = $user,
         mimeType = $mimeType,
         is_screen = $is_screen,
         startTime = time::now(),
         file_id = rand::uuid::v7()
     );
-    LET $id = array::first($recording).id;
-    UPDATE $room SET recordings += $id;
-    RETURN $id;
+    UPDATE $room SET recordings += $recording.id;
+    RETURN $recording.id;
 };
 
 DEFINE FUNCTION fn::isRecordingOwner($user: record<user>, $recording: record<recording>) {
@@ -242,6 +240,6 @@ DEFINE FUNCTION fn::isRecordingOwner($user: record<user>, $recording: record<rec
 
 DEFINE FUNCTION fn::finishRecording($user: record<user>, $recording: record<recording>) {
     IF $recording.user == $user {
-        UPDATE $recording SET complete = true;
+        UPDATE $recording SET endTime = time::now();
     };
 };

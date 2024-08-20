@@ -50,7 +50,7 @@ export function initMessageNamespace(
             );
 
         socket.on("subscribe", async (id) => {
-            const groupId = new RecordId("group", id);
+            const groupId = Database.parseRecord("group", id);
             socket.data.groupId = groupId;
 
             sub = pub.subscribe(
@@ -70,7 +70,7 @@ export function initMessageNamespace(
             try {
                 const m = await db.sendMessage(
                     socket.data.user.id,
-                    new RecordId("group", arg.groupId),
+                    Database.parseRecord("group", arg.groupId),
                     arg.content,
                     arg.attachments.map((id) =>
                         Database.parseRecord("attachment", id)
@@ -78,7 +78,9 @@ export function initMessageNamespace(
                 );
 
                 pub.publish(
-                    Database.jsonSafe(new RecordId("group", arg.groupId)),
+                    Database.jsonSafe(
+                        Database.parseRecord("group", arg.groupId)
+                    ),
                     "message",
                     Database.jsonSafe(m)
                 );

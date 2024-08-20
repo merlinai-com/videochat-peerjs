@@ -81,7 +81,7 @@ export async function getUser(
     // TODO: sign keys?
     /** The user based on cookie login */
     let cookieUser = fromCookie
-        ? await db.surreal.select<DbUser>(new RecordId("user", fromCookie))
+        ? await db.select(Database.parseRecord("user", fromCookie))
         : undefined;
 
     // If both are present, then migrate to SSO login
