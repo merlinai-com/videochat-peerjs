@@ -66,4 +66,9 @@ export class FileStore {
             })
         );
     }
+
+    async readableNodeStream(id: UUID): Promise<NodeJS.ReadableStream> {
+        const handle = await this.openFile(id);
+        return handle.createReadStream();
+    }
 }

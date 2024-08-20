@@ -15,7 +15,6 @@ import { getUserNames } from "backend/lib/login";
 import { enumerate, kebabCase, snakeCase, uniq } from "backend/lib/utils";
 import { format } from "date-fns/format";
 import JSZip from "jszip";
-import { Readable } from "node:stream";
 import type { SSO } from "sso";
 import type { RequestHandler } from "./$types";
 
@@ -67,11 +66,8 @@ async function createZipFile(
     );
 
     for (const { value: recording, index } of enumerate(room.recordings)) {
-        const file = await fileStore.readableStream(recording.file_id);
-        zip.file(
-            getZipPath(recording, nameCache, index),
-            Readable.fromWeb(file as any)
-        );
+        const file = await fileStore.readableNodeStream(recording.file_id);
+        zip.file(getZipPath(recording, nameCache, index), file);
     }
 
     return zip;
