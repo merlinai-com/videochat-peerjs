@@ -1,7 +1,5 @@
 <script lang="ts">
-    import type { PageData } from "../../routes/$types";
-
-    export let data: PageData;
+    export let data: App.PageData;
 </script>
 
 {#if data.ssoUser}

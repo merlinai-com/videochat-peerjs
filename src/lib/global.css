@@ -94,6 +94,10 @@
     margin-left: auto;
 }
 
+.align-left {
+    align-items: start;
+}
+
 .align-self-center {
     align-self: center;
 }
@@ -138,25 +142,25 @@ button,
 
 @supports (color: rgb(from currentColor r g b / 0.6)) {
     button:disabled,
-    .button:disabled {
+    .button:is(:disabled, [aria-disabled="true"]) {
         color: rgb(from currentColor r g b / 0.6);
     }
 }
 
 @supports not (color: rgb(from currentColor r g b / 0.6)) {
     button:disabled,
-    .button:disabled {
+    .button:is(:disabled, [aria-disabled="true"]) {
         color: rgb(0 0 0 / 0.6);
     }
 }
 
 button:hover:not(:disabled),
-.button:hover {
+.button:hover:not(:disabled, [aria-disabled="true"]) {
     background-color: #d0d0d7;
 }
 
 button:active:not(:disabled),
-.button:active:not(:disabled) {
+.button:active:not(:disabled, [aria-disabled="true"]) {
     background-color: #b1b1b9;
 }
 

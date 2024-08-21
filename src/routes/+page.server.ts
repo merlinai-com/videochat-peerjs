@@ -17,19 +17,23 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-    /** Create a group, then create a room from it */
-    create_room: async ({ request, locals }) => {
-        const user = await getUser(database, { ssoUser: locals.ssoUser });
-        if (!user) throw error(401, "You must be logged in to create a room");
+    accept_cookies: async (event) => {
+        const data = await event.request.formData();
+        const url = data.get("redirect");
+        const allow_recording = data.get("allow-recording") != null;
 
-        const data = await request.formData();
-        const name = data.get("name");
-        if (typeof name !== "string") throw error(422);
+        event.locals.setAcceptCookies(true);
 
-        const group = await database.createGroup(name, user.id);
-        const room = await database.createRoom(group.id, user.id);
+        if (allow_recording) {
+            const user = await getUser(database, {
+                ssoUser: event.locals.ssoUser,
+                cookies: event.cookies,
+                create: true,
+            });
+            await database.merge(user.id, { allow_recording });
+        }
 
-        throw redirect(303, `/room/${room.id}`);
+        if (typeof url === "string") throw redirect(303, url);
     },
 
     /** Create a group  */

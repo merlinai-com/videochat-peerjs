@@ -3,6 +3,8 @@ DEFINE TABLE user SCHEMAFULL TYPE NORMAL;
 DEFINE FIELD sso_id ON user TYPE option<string>;
 -- The user's nickname. This should be set if sso_id is NONE
 DEFINE FIELD name ON user TYPE option<string>;
+-- Set to true if the user always allows recordings, false if the user should be asked each time
+DEFINE FIELD allow_recording ON user TYPE bool DEFAULT false;
 DEFINE INDEX user__sso_id ON user FIELDS sso_id UNIQUE;
 
 
@@ -91,7 +93,7 @@ DEFINE FUNCTION fn::exists($id: record) {
 
 -- Create a new user without an SSO id
 DEFINE FUNCTION fn::createUser() {
-    RETURN array::first((CREATE user:uuid()));
+    RETURN (CREATE ONLY user:uuid());
 };
 
 -- Get the user from an sso_id, optionally creating a new user if none exists
@@ -100,7 +102,7 @@ DEFINE FUNCTION fn::getSsoUser($sso_id: string, $create: bool) {
     RETURN IF $user {
         RETURN array::first($user);
     } ELSE IF $create {
-        RETURN array::first((CREATE user:uuid() SET sso_id = $sso_id));
+        RETURN (CREATE ONLY user:uuid() SET sso_id = $sso_id);
     } ELSE {
         RETURN NONE;
     };
@@ -161,7 +163,7 @@ DEFINE FUNCTION fn::getOrCreateP2PGroup($user1: record<user>, $user2: record<use
     RETURN IF $group {
         RETURN array::first($group);
     } ELSE {
-        LET $group = array::first((CREATE group:uuid() SET type = "p2p", users = [$user1, $user2])).id;
+        LET $group = (CREATE ONLY group:uuid() SET type = "p2p", users = [$user1, $user2]).id;
         RELATE [$user1, $user2]->in_group->$group;
         RETURN $group;
     };
@@ -174,7 +176,7 @@ DEFINE FUNCTION fn::createAttachment($file_id: uuid, $name: string, $mime_type: 
 
 -- Send a message to a group
 DEFINE FUNCTION fn::sendMessage($from: record<user>, $to: record<group>, $content: string, $attachments: array<record<attachment>>) {
-    LET $message = array::first((RELATE $from->message->$to SET content = $content, attachments = $attachments, sent_time = time::now())).id;
+    LET $message = (RELATE ONLY $from->message->$to SET content = $content, attachments = $attachments, sent_time = time::now()).id;
     RETURN (SELECT * FROM ONLY $message FETCH attachments[*]);
 };
 
@@ -204,8 +206,8 @@ DEFINE FUNCTION fn::isInGroup($group: record<group>, $user: record<user>) {
 
 -- Create a temporary room from a group
 DEFINE FUNCTION fn::createRoom($group: record<group>, $owner: record<user>) {
-    LET $room = (CREATE room:uuid() SET group = $group, owner = $owner, recordings = [], users = [$owner]);
-    RETURN array::first($room).id;
+    LET $room = (CREATE ONLY room:uuid() SET group = $group, owner = $owner, recordings = [], users = [$owner]);
+    RETURN $room.id;
 };
 
 -- Get information about a room

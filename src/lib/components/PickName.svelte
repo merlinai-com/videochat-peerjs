@@ -7,14 +7,15 @@
 </script>
 
 <form action="/?/set_name" method="POST" use:enhance>
-    <label for="nickname">Name:</label>
-    <input
-        id="nickname"
-        name="name"
-        {required}
-        value={user.name ?? ""}
-        placeholder="Enter nickname"
-    />
+    <label>
+        Name:
+        <input
+            name="name"
+            {required}
+            value={user.name ?? ""}
+            placeholder="Enter nickname"
+        />
+    </label>
     <button type="submit">Submit</button>
     {#if !required}
         <button type="submit" formaction="/?/clear_name">Clear</button>

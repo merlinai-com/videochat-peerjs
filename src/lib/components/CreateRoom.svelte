@@ -9,13 +9,10 @@
     <h1>Create a room</h1>
     {#if user}
         <form action="/?/create_room" method="POST" use:enhance>
-            <label for="room-name">Room:</label>
-            <input
-                id="room-name"
-                name="name"
-                placeholder="Enter room name"
-                required
-            />
+            <label>
+                Room:
+                <input name="name" placeholder="Enter room name" required />
+            </label>
             <button type="submit">Create Room</button>
         </form>
     {:else}

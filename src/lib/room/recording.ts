@@ -1,4 +1,3 @@
-import { debug } from "$lib";
 import { ensureEmit } from "$lib/socket";
 import type { JsonSafe, RecordingId } from "backend/lib/database";
 import { AsyncQueue } from "backend/lib/queue";
@@ -163,13 +162,7 @@ export async function createRecordingHandler(
         },
     };
 
-    // @ts-ignore
-    if (debug("recording/handlers")) window.$recordingHandlers = handlers;
-
-    socket.on("recording", ({ action }) => {
-        if (action === "start") handlers.start(false);
-        else if (action === "stop") handlers.stop(false);
-    });
+    window.Zap.$recordingHandlers = handlers;
 
     return handlers;
 }

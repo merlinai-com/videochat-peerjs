@@ -6,19 +6,29 @@
     import { createRecordingHandler, createRtcHandler } from "$lib/room";
     import type { MediaType, RtcHandler } from "$lib/room/webrtc";
     import { message, room } from "$lib/socket";
-    import { createTimeStore, createUserNamesStore } from "$lib/stores";
+    import {
+        createStore,
+        createTimeStore,
+        createUserNamesStore,
+    } from "$lib/stores";
     import type { JsonSafe, Recording, UserId } from "backend/lib/database";
     import type { RoomSocket } from "backend/lib/types";
     import { formatTime } from "backend/lib/utils";
     import { format } from "date-fns/format";
     import { onMount } from "svelte";
     import type { PageData } from "./$types";
+    import type { Writable } from "svelte/store";
+    import AllowRecordingDialog from "$lib/components/AllowRecordingDialog.svelte";
 
     const now = createTimeStore(() => new Date(), {
         interval: 100,
     });
 
     export let data: PageData;
+
+    /** Whether the user allows recordings */
+    let allowRecording: Writable<boolean>;
+    let requestAllowRecording: () => Promise<void>;
 
     const streams: { local?: MediaStream; screen?: MediaStream } = {};
     const enabledMedia = { video: false, audio: false, screen: false };
@@ -225,7 +235,21 @@
             }
         );
 
-        handlers.startRecording = () => recordingHandler.start(true);
+        socket.on("recording", async ({ action }) => {
+            if (action === "start") {
+                if (!$allowRecording) {
+                    await requestAllowRecording();
+                }
+                recordingHandler.start(true);
+            } else {
+                recordingHandler.stop(false);
+            }
+        });
+
+        handlers.startRecording = () => {
+            $allowRecording = true;
+            recordingHandler.start(true);
+        };
         handlers.stopRecording = () => recordingHandler.stop(true);
         handlers.cleanup = tap(handlers.cleanup, () =>
             recordingHandler.stop(data.isOwner)
@@ -241,6 +265,11 @@
         handlers.cleanup = tap(handlers.cleanup, () => socket.close());
 
         userNameStore = createUserNamesStore(message());
+        allowRecording = createStore(sessionStorage, {
+            init: data.user?.allow_recording ?? false,
+            version: 1,
+            key: "allowRecording",
+        });
 
         init(socket).then(({ rtcHandler }) => {
             enabledMedia.audio = true;
@@ -252,6 +281,12 @@
         return () => handlers.cleanup();
     });
 </script>
+
+<AllowRecordingDialog
+    bind:request={requestAllowRecording}
+    on:allow={() => ($allowRecording = true)}
+    on:deny={() => ($allowRecording = false)}
+/>
 
 <div class="root overflow-hidden grid gap-3 p-3">
     <div class="flex-row gap-3 span-cols-2 flex-wrap">

@@ -30,24 +30,18 @@
     {#if data.ssoUser}
         <form action="/?/create_group" method="POST" use:enhance>
             <h2>Create group</h2>
-            <label for="create-group-name">Name:</label>
-            <input
-                id="create-group-name"
-                name="name"
-                placeholder="Group name"
-            />
+            <label>
+                Name:
+                <input name="name" placeholder="Group name" />
+            </label>
             <button type="submit">New group</button>
         </form>
         <form action="/?/create_p2p_group" method="POST" use:enhance>
             <h2>Message a user</h2>
-            <label for="p2p-message-user">Email:</label>
-            <input
-                type="email"
-                id="p2p-message-user"
-                name="email"
-                placeholder="Email"
-                required
-            />
+            <label>
+                Email:
+                <input type="email" name="email" placeholder="Email" required />
+            </label>
             <button type="submit">Message</button>
         </form>
     {:else}

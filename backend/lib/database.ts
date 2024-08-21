@@ -14,6 +14,7 @@ export type User = {
     id: UserId;
     sso_id?: string;
     name?: string;
+    allow_recording: boolean;
 };
 
 export type AttachmentId = RecordId<"attachment">;
@@ -194,16 +195,49 @@ export class Database extends Emitter<{ user: [Action, User] }> {
         } else return val;
     }
 
+    /** Retry the transaction if the resource is busy */
+    private async retryOnBusy<Args extends any[], T>(
+        f: (this: Database, ...args: Args) => T | PromiseLike<T>,
+        ...args: Args
+    ): Promise<T> {
+        while (true) {
+            try {
+                return await f.call(this, ...args);
+            } catch (error) {
+                if (
+                    error instanceof ResponseError &&
+                    error.message.includes("Resource busy")
+                ) {
+                    // Retry
+                    continue;
+                } else {
+                    throw error;
+                }
+            }
+        }
+    }
+
     async run<T>(func: string, ...args: any[]): Promise<T> {
-        const res = await this.surreal.run<T>(func, args);
-        return Database.convert(res);
+        return await this.retryOnBusy(async function () {
+            const res = await this.surreal.run<T>(func, args);
+            return Database.convert(res);
+        });
     }
 
     async select(id: RecordingId): Promise<Recording>;
     async select(id: AttachmentId): Promise<Attachment>;
     async select(id: UserId): Promise<User>;
     async select(id: RecordId): Promise<any> {
-        return Database.convert(await this.surreal.select(id));
+        return await this.retryOnBusy(async function () {
+            return Database.convert(await this.surreal.select(id));
+        });
+    }
+
+    async merge(id: UserId, data: Partial<User>): Promise<void>;
+    async merge(id: RecordId, data: any): Promise<void> {
+        return await this.retryOnBusy(async function () {
+            await this.surreal.merge(id, data);
+        });
     }
 
     async selectAll(ids: UserId[]): Promise<User[]>;

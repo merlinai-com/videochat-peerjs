@@ -11,13 +11,17 @@ declare global {
             ssoUser: SsoUser | null;
             ssoSession: Session | null;
             user?: DbUser;
+            acceptCookies: boolean;
+            setAcceptCookies: (accept: boolean) => void;
         }
         interface PageData {
             authURLs: {
                 login: string;
                 logout: string;
             };
-            ssoUser: User | null;
+            ssoUser: JsonSafe<User> | null;
+            user?: JsonSafe<DbUser>;
+            acceptCookies: boolean;
         }
         // interface PageState {}
         // interface Platform {}

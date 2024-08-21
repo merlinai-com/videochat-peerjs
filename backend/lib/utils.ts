@@ -1,7 +1,4 @@
 import { intervalToDuration, type Duration, type Interval } from "date-fns";
-import { getHours } from "date-fns/getHours";
-import { getMinutes } from "date-fns/getMinutes";
-import { getSeconds } from "date-fns/getSeconds";
 
 /* ================
 Callback operations
@@ -81,6 +78,27 @@ export function mergeBy<T>(xs: T[], ys: T[], key: keyof T): T[] {
     }
     out.push(...ys.slice(yi));
     return out;
+}
+
+/**
+ * Group values by some key.
+ * Output is ordered by order each key first occurs in the input.
+ */
+export function groupBy<T, K>(
+    values: T[],
+    key: (val: T) => K
+): { key: K; values: T[] }[] {
+    const groups = new Map<K, T[]>();
+    for (const val of values) {
+        const k = key(val);
+        let group = groups.get(k);
+        if (!group) {
+            group = [];
+            groups.set(k, group);
+        }
+        group.push(val);
+    }
+    return [...groups].map(([key, values]) => ({ key, values }));
 }
 
 /* ==============
@@ -181,25 +199,10 @@ export function formatTime(duration: Duration | Interval): string {
     }
 }
 
-/**
- * Group values by their day.
- * Output is ordered by order each key first occurs in the input.
- */
-export function groupBy<T, K>(
-    values: T[],
-    key: (val: T) => K
-): { key: K; values: T[] }[] {
-    const groups = new Map<K, T[]>();
-    for (const val of values) {
-        const k = key(val);
-        let group = groups.get(k);
-        if (!group) {
-            group = [];
-            groups.set(k, group);
-        }
-        group.push(val);
-    }
-    return [...groups].map(([key, values]) => ({ key, values }));
+const secondsInDay = 24 * 60 * 60;
+
+export function daysToSeconds(days: number): number {
+    return days * secondsInDay;
 }
 
 /* ==================

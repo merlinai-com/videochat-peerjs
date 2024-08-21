@@ -4,7 +4,7 @@ import type { MessageSocket } from "backend/lib/types";
 import { uniq } from "backend/lib/utils";
 import { readable, writable, type Readable, type Writable } from "svelte/store";
 
-function createStore<T>(
+export function createStore<T>(
     store: Storage,
     opts: {
         init: T;

@@ -1,9 +1,11 @@
 import { sso } from "$lib/server/sso";
 import { Database } from "backend/lib/database";
-// import type { ServerLoad } from "@sveltejs/kit";
 import type { LayoutServerLoad } from "./$types";
 
 export const load: LayoutServerLoad = async ({ locals, url }) => {
+    const user = locals.user && { ...locals.user };
+    if (locals.ssoUser && user) user.name = locals.ssoUser.name;
+
     return {
         authURLs: {
             login: sso.loginURL(url).href,
@@ -13,6 +15,7 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
             logout: sso.logoutURL(url).href,
         },
         ssoUser: locals.ssoUser,
-        user: Database.jsonSafe(locals.user),
+        user: Database.jsonSafe(user),
+        acceptCookies: locals.acceptCookies,
     };
 };

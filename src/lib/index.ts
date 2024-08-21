@@ -32,11 +32,7 @@ export function getOtherUser<U extends string | { id: string }>(
     return other;
 }
 
-const debugTopics = [
-    "socket/message",
-    "socket/room",
-    "recording/handlers",
-] as const;
+const debugTopics = ["socket/message", "socket/room"] as const;
 export type DebugTopic = (typeof debugTopics)[number];
 
 export function debug(topic: DebugTopic): boolean {
@@ -51,3 +47,11 @@ export function debug(topic: DebugTopic): boolean {
     const topics = item.split(",");
     return topics.some((t) => topic.startsWith(t));
 }
+
+declare global {
+    interface Window {
+        Zap: Record<string, any>;
+    }
+}
+
+if (browser) window.Zap ??= {};

@@ -16,7 +16,7 @@
         Message,
         User,
     } from "backend/lib/database";
-    import type { MessageSocket, UUID } from "backend/lib/types";
+    import type { MessageSocket } from "backend/lib/types";
     import { groupBy, mergeBy, selectNonNull } from "backend/lib/utils";
     import { format } from "date-fns/format";
     import { formatDistanceToNowStrict } from "date-fns/formatDistanceToNowStrict";
@@ -246,23 +246,26 @@
 
             <div>
                 <!-- svelte-ignore a11y-no-noninteractive-element-to-interactive-role -->
-                <label class="button" role="button" for="file-selector">
+                <label class="button" role="button" aria-disabled={!user?.name}>
                     Add attachment
+                    <input
+                        type="file"
+                        multiple
+                        on:change={({ currentTarget }) =>
+                            (message.attachments = [
+                                ...message.attachments,
+                                ...(currentTarget.files ?? []),
+                            ])}
+                    />
                 </label>
-                <input
-                    id="file-selector"
-                    type="file"
-                    multiple
-                    on:change={({ currentTarget }) =>
-                        (message.attachments = [
-                            ...message.attachments,
-                            ...(currentTarget.files ?? []),
-                        ])}
-                />
 
                 <input
                     placeholder="Message"
                     required={message.attachments.length === 0}
+                    disabled={!user?.name}
+                    title={!user?.name
+                        ? "Enter your name to send a message"
+                        : undefined}
                     bind:value={message.content}
                     on:paste={pasteHandler}
                 />
