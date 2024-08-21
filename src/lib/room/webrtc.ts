@@ -34,6 +34,23 @@ export function createRtcHandler(
     const peers: Record<string, PeerState> = {};
     const rtcConfig: RTCConfiguration = { iceServers };
 
+    window.Zap.webrtcStats = async () => {
+        const allStats = await Promise.all(
+            Object.entries(peers).map(async ([id, peer]) => ({
+                id,
+                stats: await peer.conn.getStats(),
+            }))
+        );
+
+        console.group("WebRTC stats");
+        for (const { id, stats } of allStats) {
+            console.groupCollapsed(id);
+            stats.forEach(console.log);
+            console.groupEnd();
+        }
+        console.groupEnd();
+    };
+
     socket.on("signal", async ({ from, desc, candidate }) => {
         if (!state.connected) return;
 
