@@ -102,15 +102,15 @@ export function createRtcHandler(
             senders: new Map(),
         });
 
-        pc.conn.addEventListener("track", ({ track, streams }) => {
+        pc.conn.addEventListener("track", ({ track, streams, receiver }) => {
+            for (const stream of streams) {
+                stream.addEventListener("removetrack", () => {
+                    if (!stream.active) callbacks.removeStream(id, stream);
+                });
+            }
             track.addEventListener("unmute", () => {
                 for (const stream of streams) {
                     callbacks.addStream(id, stream);
-                }
-            });
-            track.addEventListener("ended", () => {
-                for (const stream of streams) {
-                    if (!stream.active) callbacks.removeStream(id, stream);
                 }
             });
         });

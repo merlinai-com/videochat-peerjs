@@ -11,6 +11,7 @@ export const load: PageServerLoad = async ({ params, locals, cookies }) => {
         Database.parseRecord("room", params.id)
     );
     if (!room) throw error(404, "Room not found");
+
     return {
         roomName: room.group.name,
         roomId: Database.jsonSafe(room.id),

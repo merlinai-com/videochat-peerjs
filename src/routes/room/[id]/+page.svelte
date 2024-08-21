@@ -2,7 +2,7 @@
     import GroupView from "$lib/components/GroupView.svelte";
     import Login from "$lib/components/Login.svelte";
     import VideoGrid from "$lib/components/VideoGrid.svelte";
-    import VideoScreenShare from "$lib/components/VideoScreenShare.svelte";
+    import VideoGridSelected from "$lib/components/VideoGridSelected.svelte";
     import { createRecordingHandler, createRtcHandler } from "$lib/room";
     import type { MediaType, RtcHandler } from "$lib/room/webrtc";
     import { message, room } from "$lib/socket";
@@ -37,7 +37,12 @@
     let showMessages = true;
 
     /** The id of the current screen share*/
-    let screenShareId: string | undefined;
+    let selectedStream: MediaStream | undefined;
+    $: ensureSelectedStreamExists(videos);
+    function ensureSelectedStreamExists(videos: MediaStream[]) {
+        if (selectedStream && !videos.includes(selectedStream))
+            selectedStream = undefined;
+    }
 
     const state = {
         /** Is the user currently connected to the call*/
@@ -49,7 +54,12 @@
     /** The start time of the current recording */
     let recordingStartTime = new Date();
 
-    let videos: Record<string, Set<MediaStream>> = {};
+    /** A map from peer IDs to media streams */
+    let peers: Record<string, Set<MediaStream>> = {};
+    $: videos = [
+        ...Object.values(peers).flatMap((streams) => [...streams]),
+        ...Object.values(streams).filter((stream) => stream),
+    ];
 
     /** The list of users currently in the room */
     let users: JsonSafe<{ id: UserId; name?: string }>[] = [];
@@ -105,7 +115,7 @@
                 if (streams.screen) {
                     rtcHandler.removeStream(streams.screen);
                     streams.screen = undefined;
-                    screenShareId = undefined;
+                    selectedStream = undefined;
                 }
 
                 if (enabledMedia.screen) {
@@ -115,6 +125,8 @@
                                 {
                                     video: true,
                                     audio: true,
+                                    // @ts-ignore
+                                    preferCurrentTab: false,
                                 }
                             );
 
@@ -136,7 +148,7 @@
                     socket.emit("screen_share", {
                         streamId: streams.screen.id,
                     });
-                    screenShareId = streams.screen.id;
+                    selectedStream = streams.screen;
 
                     rtcHandler.addStream(streams.screen);
                 } else {
@@ -174,8 +186,11 @@
         });
 
         socket.on("screen_share", (arg) => {
+            // Disable screen share if another user starts
             if (arg && streams.screen) handlers.toggleMedia("screen");
-            screenShareId = arg?.streamId;
+            selectedStream = Object.values(peers)
+                .flatMap((streams) => [...streams])
+                .find((stream) => stream.id == arg.streamId);
         });
 
         socket.on("users", (us) => (users = us));
@@ -191,15 +206,15 @@
             state,
             {
                 addStream(id, stream) {
-                    videos[id] ??= new Set();
-                    videos[id].add(stream);
+                    peers[id] ??= new Set();
+                    peers[id].add(stream);
                 },
                 removeStream(id, stream) {
-                    videos[id]?.delete(stream);
+                    peers[id]?.delete(stream);
                 },
                 removePeer(id) {
-                    delete videos[id];
-                    videos = videos;
+                    delete peers[id];
+                    peers = peers;
                 },
             }
         );
@@ -321,6 +336,20 @@
                 Share screen
             {/if}
         </button>
+        <button on:click={() => handlers.toggleMedia("video")}>
+            {#if enabledMedia.video}
+                Mute video
+            {:else}
+                Unmute video
+            {/if}
+        </button>
+        <button on:click={() => handlers.toggleMedia("audio")}>
+            {#if enabledMedia.audio}
+                Mute mic
+            {:else}
+                Unmute mic
+            {/if}
+        </button>
         {#if state.recording}
             <span style="color: red;">
                 Recording ({formatTime({
@@ -347,10 +376,20 @@
     </div>
 
     <div class={showMessages ? "min-h-0" : "min-h-0 span-cols-2"}>
-        {#if screenShareId}
-            <VideoScreenShare peers={videos} {streams} {screenShareId} />
+        {#if selectedStream}
+            <VideoGridSelected
+                {videos}
+                {streams}
+                {selectedStream}
+                on:deselect={() => (selectedStream = undefined)}
+                on:select={(ev) => (selectedStream = ev.detail)}
+            />
         {:else}
-            <VideoGrid peers={videos} {streams} />
+            <VideoGrid
+                {videos}
+                {streams}
+                on:select={(ev) => (selectedStream = ev.detail)}
+            />
         {/if}
     </div>
 
@@ -359,6 +398,7 @@
     </div>
 
     {#if data.isOwner}
+        <!-- Recordings -->
         <div class="flex-row flex-wrap gap-3 span-cols-2">
             <button
                 disabled={state.recording || !state.connected}
@@ -372,13 +412,22 @@
             >
                 Stop Recording
             </button>
-            <a
-                class="button"
-                href="/api/room/{data.roomId.replace('room:', '')}/recording"
-                target="_blank"
-            >
-                Download recording
-            </a>
+            {#if recordings.length > 0}
+                <a
+                    class="button"
+                    href="/api/room/{data.roomId.replace(
+                        'room:',
+                        ''
+                    )}/recording"
+                    target="_blank"
+                >
+                    Download recording
+                </a>
+            {:else}
+                <span class="button" aria-disabled="true">
+                    Download recording
+                </span>
+            {/if}
             {#if recordings.length > 0}
                 <div class="flex-row gap-3 flex-wrap">
                     <h4>Recordings</h4>

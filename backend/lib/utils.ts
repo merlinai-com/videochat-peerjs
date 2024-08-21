@@ -205,6 +205,29 @@ export function daysToSeconds(days: number): number {
     return days * secondsInDay;
 }
 
+/** Sleep for `delay` milliseconds */
+export function sleep(
+    delay?: number,
+    options?: { signal?: AbortSignal }
+): Promise<void> {
+    const signal = options?.signal;
+    return new Promise((resolve, reject) => {
+        if (signal?.aborted) reject(signal.reason);
+
+        const abortListener = () => {
+            clearTimeout(t);
+            signal?.removeEventListener("abort", abortListener);
+            reject(signal?.reason);
+        };
+        signal?.addEventListener("abort", abortListener);
+
+        let t = setTimeout(() => {
+            signal?.removeEventListener("abort", abortListener);
+            resolve();
+        }, delay);
+    });
+}
+
 /* ==================
 Environment variables
 ================== */

@@ -1,13 +1,16 @@
 <script lang="ts">
     import { findBestLayout } from "$lib/layout";
+    import { createEventDispatcher } from "svelte";
     import VideoPlayer from "./MediaPlayer.svelte";
 
-    export let peers: Record<string, Set<MediaStream>>;
+    export let videos: MediaStream[];
     export let streams: { local?: MediaStream; screen?: MediaStream };
+
+    const emit = createEventDispatcher<{ select: MediaStream }>();
 
     /** Get metadata about videos */
     function getVideoLayouts(
-        ...videos: MediaStream[]
+        videos: MediaStream[]
     ): { aspectRatio?: number; stream: MediaStream }[] {
         // TODO: assumes there's at most 1 video track
         const tracks = videos.flatMap((stream) => {
@@ -28,13 +31,8 @@
         });
     }
 
-    $: videos = getVideoLayouts(
-        ...Object.values(peers).flatMap((streams) => [...streams]),
-        ...Object.values(streams).filter((stream) => stream)
-    );
-
     let client = { width: 1, height: 1 };
-    $: layout = findBestLayout(client, videos);
+    $: layout = findBestLayout(client, getVideoLayouts(videos));
 </script>
 
 <div
@@ -43,9 +41,10 @@
     bind:clientWidth={client.width}
     bind:clientHeight={client.height}
 >
-    {#each videos as { stream } (stream.id)}
+    {#each videos as stream (stream.id)}
         <div class="min-w-0 min-h-0">
             <VideoPlayer
+                on:click={() => emit("select", stream)}
                 class_="w-full h-full"
                 {stream}
                 muted={stream == streams.local}

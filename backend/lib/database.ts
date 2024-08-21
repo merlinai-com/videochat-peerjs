@@ -7,7 +7,7 @@ import {
     UUID as SurrealUUID,
 } from "surrealdb.js";
 import type { UUID } from "./types.js";
-import { get } from "./utils.js";
+import { get, sleep } from "./utils.js";
 
 export type UserId = RecordId<"user">;
 export type User = {
@@ -195,20 +195,28 @@ export class Database extends Emitter<{ user: [Action, User] }> {
         } else return val;
     }
 
-    /** Retry the transaction if the resource is busy */
-    private async retryOnBusy<Args extends any[], T>(
-        f: (this: Database, ...args: Args) => T | PromiseLike<T>,
-        ...args: Args
+    /**
+     * Retry the transaction if the resource is busy.
+     * Retries occur after a small random time to prevent simultaneous failed
+     * transactions from failing again.
+     */
+    private async retryOnBusy<T>(
+        f: (
+            this: Database,
+            options?: { signal?: AbortSignal }
+        ) => T | PromiseLike<T>,
+        options?: { signal?: AbortSignal }
     ): Promise<T> {
         while (true) {
             try {
-                return await f.call(this, ...args);
+                return await f.call(this, options);
             } catch (error) {
                 if (
                     error instanceof ResponseError &&
                     error.message.includes("Resource busy")
                 ) {
-                    // Retry
+                    // Retry after 0-1ms
+                    await sleep(Math.random(), options);
                     continue;
                 } else {
                     throw error;
