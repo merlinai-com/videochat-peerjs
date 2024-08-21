@@ -121,13 +121,12 @@ export function initRoomNamespace(
             },
         };
 
-        const userSub = pub.subscribe(signalId, userListeners);
+        const userSub = pub.subscribe(signalId, { listeners: userListeners });
 
         if (socket.data.roomId) {
-            roomSub = pub.subscribe(
-                Database.jsonSafe(socket.data.roomId),
-                roomListeners
-            );
+            roomSub = pub.subscribe(Database.jsonSafe(socket.data.roomId), {
+                listeners: roomListeners,
+            });
         }
 
         const leaveRoom = async () => {
@@ -165,10 +164,9 @@ export function initRoomNamespace(
             const room = await db.queryRoom(socket.data.roomId);
             if (!room) throw new UserError(`Unknown room: ${roomId}`);
 
-            roomSub = pub.subscribe(
-                Database.jsonSafe(socket.data.roomId),
-                roomListeners
-            );
+            roomSub = pub.subscribe(Database.jsonSafe(socket.data.roomId), {
+                listeners: roomListeners,
+            });
             await db.joinRoom(socket.data.roomId, socket.data.user!.id);
 
             await updateRoom("users");

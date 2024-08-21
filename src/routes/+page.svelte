@@ -1,7 +1,6 @@
 <script lang="ts">
-    import CreateRoom from "$lib/components/CreateRoom.svelte";
-    import Login from "$lib/components/Login.svelte";
     import GroupSelector from "$lib/components/GroupSelector.svelte";
+    import Login from "$lib/components/Login.svelte";
     import PickName from "$lib/components/PickName.svelte";
     import type { ActionData, PageData } from "./$types";
 

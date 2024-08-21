@@ -5,14 +5,16 @@ import { uniq } from "backend/lib/utils";
 import { readable, writable, type Readable, type Writable } from "svelte/store";
 
 export function createStore<T>(
-    store: Storage,
+    store: Storage | undefined,
     opts: {
         init: T;
         key: string;
         version: number;
         rehydrate?: (val: T) => T;
     }
-) {
+): Writable<T> {
+    if (!store) return writable(opts.init);
+
     let val: T;
     const str = store.getItem(opts.key);
     if (str === null) {
@@ -48,6 +50,12 @@ export function createStore<T>(
 
     return s;
 }
+
+export const optionsStore = createStore(browser ? localStorage : undefined, {
+    init: { playSoundOnMessage: true },
+    key: "options",
+    version: 1,
+});
 
 const defaultTimeStoreOptions = {
     interval: 5 * 1000,
@@ -137,4 +145,19 @@ export function createUserNamesStore(socket?: MessageSocket): UserNameStore {
             if (ids.length > 0) socket?.emit("request_users", uniq(ids));
         },
     };
+}
+
+/**
+ * Read the value of a store, without subscribing
+ */
+export function read<T>(store: Readable<T>): T {
+    let val = undefined as T;
+    let valSet = false;
+    store.subscribe((v) => {
+        val = v;
+        valSet = true;
+    })();
+    if (!valSet)
+        throw new Error("Internal Error: value was not set by subscribe");
+    return val;
 }

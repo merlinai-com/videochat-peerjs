@@ -54,21 +54,26 @@ export class Subscriber<
     }
 
     /** Publish a message for this topic */
-    publish<Ev extends keyof E[Id]>(ev: Ev, ...message: Parameters<E[Id][Ev]>) {
+    publish<Ev extends Exclude<keyof E[Id], keyof ReservedEvents<E[Id]>>>(
+        ev: Ev,
+        ...message: Parameters<E[Id][Ev]>
+    ) {
         this.pub.publish(this.id, ev, ...message);
     }
 }
 
 export class Publisher<E extends EventMap<E>> {
     private subs: {
-        [id in keyof E]?: Set<Subscriber<id, E>>;
+        [id in keyof E]?: Set<Subscriber<id, E> | WeakRef<Subscriber<id, E>>>;
     };
 
     constructor() {
         this.subs = {};
     }
 
-    private getSubsFor<Id extends keyof E>(id: Id): Set<Subscriber<Id, E>> {
+    private getSubsFor<Id extends keyof E>(
+        id: Id
+    ): Set<Subscriber<Id, E> | WeakRef<Subscriber<Id, E>>> {
         this.subs[id] ??= new Set();
         return this.subs[id];
     }
@@ -76,10 +81,17 @@ export class Publisher<E extends EventMap<E>> {
     /** Subscribe to a topic */
     subscribe<Id extends keyof E>(
         id: Id,
-        listeners?: Listeners<Id, E>
+        options?: {
+            listeners?: Listeners<Id, E>;
+            weak?: boolean;
+        }
     ): Subscriber<Id, E> {
-        const sub = new Subscriber(this, id, listeners);
-        this.getSubsFor(id).add(sub);
+        const sub = new Subscriber(this, id, options?.listeners);
+        if (options?.weak) {
+            this.getSubsFor(id).add(new WeakRef(sub));
+        } else {
+            this.getSubsFor(id).add(sub);
+        }
         return sub;
     }
 
@@ -93,16 +105,24 @@ export class Publisher<E extends EventMap<E>> {
     /**
      * Publish a message to all subscriber for an id and event
      */
-    publish<Id extends keyof E, Ev extends keyof E[Id]>(
-        id: Id,
-        ev: Ev,
-        ...message: Parameters<E[Id][Ev]>
-    ) {
+    publish<
+        Id extends keyof E,
+        Ev extends Exclude<keyof E[Id], keyof ReservedEvents<E[Id]>>
+    >(id: Id, ev: Ev, ...message: Parameters<E[Id][Ev]>) {
         const subs = this.subs[id];
         if (!subs) return;
         for (const sub of subs) {
-            // @ts-ignore
-            sub.emit(ev, ...message);
+            if (sub instanceof WeakRef) {
+                const sub_ = sub.deref();
+                if (!sub_) subs.delete(sub);
+                else {
+                    // @ts-ignore
+                    sub_.emit(ev, ...message);
+                }
+            } else {
+                // @ts-ignore
+                sub.emit(ev, ...message);
+            }
         }
     }
 }

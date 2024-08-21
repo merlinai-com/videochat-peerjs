@@ -6,7 +6,7 @@
     import { enhance } from "$app/forms";
     import { fetchJson } from "$lib";
     import { ensureEmit, message as messageSocket } from "$lib/socket";
-    import { createTimeStore, createUserNamesStore } from "$lib/stores";
+    import { createUserNamesStore } from "$lib/stores";
     import type {
         Attachment,
         AttachmentId,
@@ -19,13 +19,9 @@
     import type { MessageSocket } from "backend/lib/types";
     import { groupBy, mergeBy, selectNonNull } from "backend/lib/utils";
     import { format } from "date-fns/format";
-    import { formatDistanceToNowStrict } from "date-fns/formatDistanceToNowStrict";
     import { onMount } from "svelte";
     import MessageView from "./MessageView.svelte";
-
-    const dateFns = createTimeStore(() => ({
-        formatDistanceToNowStrict,
-    }));
+    import { AudioEngine } from "$lib/audio";
 
     /** The current user's ID */
     export let user: JsonSafe<User> | undefined;
@@ -35,6 +31,7 @@
     export let controls = false;
 
     let socket: MessageSocket;
+    let audio: AudioEngine<"message">;
     let users = createUserNamesStore();
 
     $: title =
@@ -126,14 +123,21 @@
     onMount(() => {
         socket = messageSocket();
 
-        socket.on("messages", (ms) => {
+        socket.on("messages", (ms, isResponse) => {
             if (!selectedGroup) return;
 
-            addMessages(ms);
+            const onlySelf = ms.every((m) => m.in === user?.id);
+            if (!onlySelf && !isResponse) audio.play("message");
+
+            addMessages(
+                ms.filter((message) => selectedGroup.id == message.out)
+            );
             users.request(messages.map((m) => m.in));
         });
 
         users = createUserNamesStore(socket);
+
+        audio = new AudioEngine({ message: "/sounds/message.m4a" });
 
         return () => socket.close();
     });

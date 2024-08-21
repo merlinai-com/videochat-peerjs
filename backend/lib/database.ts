@@ -30,7 +30,7 @@ export type MessageId = RecordId<"message">;
 export type Message<A extends Attachment | AttachmentId = AttachmentId> = {
     id: MessageId;
     in: UserId;
-    out: UserId;
+    out: GroupId;
     content: string;
     attachments: A[];
     sent_time: Date;

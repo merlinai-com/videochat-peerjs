@@ -6,7 +6,6 @@
     import { enhance } from "$app/forms";
     import { getOtherUser } from "$lib";
     import type { Group, JsonSafe } from "backend/lib/database";
-    import { onMount } from "svelte";
     import type { ActionData, PageData } from "../../routes/$types";
     import GroupView from "./GroupView.svelte";
 
@@ -21,8 +20,6 @@
     ) {
         selectedGroup = form.group;
     }
-
-    onMount(() => {});
 </script>
 
 <div>

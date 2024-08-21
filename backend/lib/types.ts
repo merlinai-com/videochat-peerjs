@@ -104,7 +104,10 @@ export interface RoomClientToServerEvents {
 
 export interface MessageServerToClientEvents {
     /** Some messages from the server */
-    messages: (ms: JsonSafe<Message<Attachment>>[]) => void;
+    messages: (
+        ms: JsonSafe<Message<Attachment>>[],
+        isResponse: boolean
+    ) => void;
 
     /** Information about some users */
     users: (us: { id: JsonSafe<UserId>; name?: string }[]) => void;
@@ -145,16 +148,19 @@ export interface SocketData {
     signalId?: SignalId;
     /** The user's name */
     userName?: string;
+}
+
+export interface RoomSocketData extends SocketData {
     /** The id of the room the user is connected to */
     roomId?: RoomId;
 }
 
-export interface RoomSocketData extends SocketData {
+export interface MessageSocketData extends SocketData {
+    /** The group the client is currently subscribed to */
+    groupIds?: Set<JsonSafe<GroupId>>;
+
     /** Which messages have been seen? Using client generated UUIDs */
     seenMessages?: Set<UUID>;
-
-    /** The group the client is currently subscribed to */
-    groupId?: GroupId;
 }
 
 export type Socket = import("socket.io-client").Socket<{}, {}>;

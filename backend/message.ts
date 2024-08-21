@@ -1,24 +1,43 @@
 import { Namespace } from "socket.io";
 import { SSO } from "sso";
-import { RecordId } from "surrealdb.js";
+import { injectErrorHandler } from "./errorHandler.js";
 import { Database, type GroupId, type JsonSafe } from "./lib/database.js";
 import { getUserNames } from "./lib/login.js";
 import type {
     InterServerEvents,
     MessageClientToServerEvents,
     MessageServerToClientEvents,
+    MessageSocketData,
     PublisherEvents,
-    RoomSocketData,
 } from "./lib/types.js";
 import { type Listeners, Publisher, Subscriber } from "./publisher.js";
-import { injectErrorHandler } from "./errorHandler.js";
+
+function ensureSub(
+    pub: Publisher<PublisherEvents>,
+    subs: Map<
+        JsonSafe<GroupId>,
+        Subscriber<JsonSafe<GroupId>, PublisherEvents>
+    >,
+    id: JsonSafe<GroupId>,
+    listeners: Listeners<JsonSafe<GroupId>, PublisherEvents>
+) {
+    if (!subs.has(id)) {
+        subs.set(
+            id,
+            pub.subscribe(id, {
+                listeners,
+                weak: true,
+            })
+        );
+    }
+}
 
 export function initMessageNamespace(
     ns: Namespace<
         MessageClientToServerEvents,
         MessageServerToClientEvents,
         InterServerEvents,
-        RoomSocketData
+        MessageSocketData
     >,
     pub: Publisher<PublisherEvents>,
     db: Database,
@@ -30,12 +49,17 @@ export function initMessageNamespace(
             socket.emit("error", event, "Internal error");
         });
 
+        const groupIds = socket.data.groupIds ?? new Set();
+
         const seenMessages = socket.data.seenMessages ?? new Set();
-        let sub: Subscriber<JsonSafe<GroupId>, PublisherEvents> | undefined;
+        let subs = new Map<
+            JsonSafe<GroupId>,
+            Subscriber<JsonSafe<GroupId>, PublisherEvents>
+        >();
 
         const groupListeners: Listeners<JsonSafe<GroupId>, PublisherEvents> = {
             message(message) {
-                socket.emit("messages", [message]);
+                socket.emit("messages", [message], false);
             },
 
             user(id, name) {
@@ -43,23 +67,22 @@ export function initMessageNamespace(
             },
         };
 
-        if (socket.data.groupId)
-            sub = pub.subscribe(
-                Database.jsonSafe(socket.data.groupId),
-                groupListeners
-            );
+        for (const id of groupIds) ensureSub(pub, subs, id, groupListeners);
+
+        socket.on("disconnect", () => {
+            // Remove all subscribers
+            subs.forEach((sub) => sub.unsubscribe());
+            subs.clear();
+        });
 
         socket.on("subscribe", async (id) => {
             const groupId = Database.parseRecord("group", id);
-            socket.data.groupId = groupId;
 
-            sub = pub.subscribe(
-                Database.jsonSafe(socket.data.groupId),
-                groupListeners
-            );
+            groupIds.add(Database.jsonSafe(groupId));
+            ensureSub(pub, subs, id, groupListeners);
 
             const messages = await db.getMessages(groupId);
-            socket.emit("messages", Database.jsonSafe(messages));
+            socket.emit("messages", Database.jsonSafe(messages), true);
         });
 
         socket.on("send", async (arg, callback) => {
