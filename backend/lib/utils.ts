@@ -66,6 +66,14 @@ export function selectNonNull<T>(vals: T[]): NonNullable<T>[] {
     return vals.filter((val) => val != undefined);
 }
 
+function* rangeIter(from: number, to: number): Generator<number, void, void> {
+    for (; from < to; from++) yield from;
+}
+
+export function range({ from, to }: { from: number; to: number }): number[] {
+    return [...rangeIter(from, to)];
+}
+
 /** Merge 2 sorted arrays ordering by the given key */
 export function mergeBy<T>(xs: T[], ys: T[], key: keyof T): T[] {
     const out = [];
