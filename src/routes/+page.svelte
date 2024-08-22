@@ -8,16 +8,25 @@
     export let form: ActionData;
 </script>
 
-<nav>
-    <a href="/">Zap</a>
-</nav>
+<div class="root flex-col gap-3">
+    <nav>
+        <a href="/">Zap</a>
+    </nav>
 
-<Login {data} />
+    <Login {data} />
 
-{#if data.user}
-    <PickName required={!data.ssoUser} user={data.user} />
-{/if}
+    {#if data.user}
+        <PickName required={!data.ssoUser} user={data.user} />
+    {/if}
 
-<!-- <CreateRoom user={data.ssoUser} /> -->
+    <!-- <CreateRoom user={data.ssoUser} /> -->
 
-<GroupSelector {data} {form} />
+    <GroupSelector {data} {form} />
+</div>
+
+<style>
+    .root {
+        width: 100vw;
+        height: 100vh;
+    }
+</style>

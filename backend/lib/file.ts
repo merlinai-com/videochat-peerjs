@@ -1,8 +1,14 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { Writable } from "node:stream";
+import { Database, JsonSafe, Recording, UserId } from "./database.js";
 import type { UUID } from "./types.js";
-import { trackingStream } from "./utils.js";
+import {
+    formatPathDate,
+    kebabCase,
+    snakeCase,
+    trackingStream,
+} from "./utils.js";
 
 export class FileStore {
     /** A cache of file handles */
@@ -26,23 +32,7 @@ export class FileStore {
         id: UUID,
         flags: "a+" | "r"
     ): Promise<fs.FileHandle> {
-        let handle;
-        try {
-            handle = await fs.open(this.filePath(id), flags);
-        } catch (error) {
-            if (
-                error instanceof Error &&
-                error.message.includes("ENOENT") &&
-                flags === "a+"
-            ) {
-                await fs.mkdir(this.uploadDir);
-                handle = await fs.open(this.filePath(id));
-            } else {
-                throw error;
-            }
-        }
-
-        return handle;
+        return await fs.open(this.filePath(id), flags);
     }
 
     async appendChunk(id: UUID, data: Uint8Array): Promise<void> {
@@ -84,4 +74,25 @@ export class FileStore {
         const handle = await this.openFile(id, "r");
         return handle.createReadStream();
     }
+}
+
+/** Return the path to put the recording in the zip archive */
+export function getZipPath(
+    recording: Recording,
+    nameCache: Record<JsonSafe<UserId>, string | undefined>,
+    index?: number
+): string {
+    let extension = "";
+    if (recording.mimeType.startsWith("video/webm")) extension = ".webm";
+    else if (recording.mimeType.startsWith("video/ogg")) extension = ".ogg";
+    else if (recording.mimeType.startsWith("video/mp4")) extension = ".mp4";
+    else console.warn(`Unrecognised MIME type: ${recording.mimeType}`);
+
+    const name = nameCache[Database.jsonSafe(recording.user)] ?? "Unknown";
+    const time = formatPathDate(recording.startTime);
+    const screen = recording.is_screen ? "screenshare" : "";
+
+    const path = [name, screen, time];
+    if (index !== undefined) path.push(index.toString());
+    return snakeCase(path.map(kebabCase)) + extension;
 }

@@ -10,40 +10,12 @@ import {
     type Room,
     type UserId,
 } from "backend/lib/database";
-import type { FileStore } from "backend/lib/file";
+import { getZipPath, type FileStore } from "backend/lib/file";
 import { getUserNames } from "backend/lib/login";
-import { enumerate, kebabCase, snakeCase, uniq } from "backend/lib/utils";
-import { format } from "date-fns/format";
+import { enumerate, formatPathDate, uniq } from "backend/lib/utils";
 import JSZip from "jszip";
 import type { SSO } from "sso";
 import type { RequestHandler } from "./$types";
-
-/** Format a date in a format suitable for a path */
-function formatDate(date: Date): string {
-    return format(date, "yyyy-MM-dd_HH.mm.ss");
-}
-
-/** Return the path to put the recording in the zip archive */
-function getZipPath(
-    recording: Recording,
-    nameCache: Record<JsonSafe<UserId>, string | undefined>,
-    index: number
-): string {
-    let extension = "";
-    if (recording.mimeType.startsWith("video/webm")) extension = ".webm";
-    else if (recording.mimeType.startsWith("video/ogg")) extension = ".ogg";
-    else if (recording.mimeType.startsWith("video/mp4")) extension = ".mp4";
-    else console.warn(`Unrecognised MIME type: ${recording.mimeType}`);
-
-    const name = nameCache[Database.jsonSafe(recording.user)] ?? "Unknown";
-    const time = formatDate(recording.startTime);
-    const screen = recording.is_screen ? "screenshare" : "";
-
-    return (
-        snakeCase([name, screen, time, index.toString()].map(kebabCase)) +
-        extension
-    );
-}
 
 async function createZipFile(
     db: Database,
@@ -127,7 +99,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
             "Content-Type": "application/zip",
             "Content-Disposition": `attachment; filename=${
                 room.group.name
-            } recordings ${formatDate(new Date())}.zip`,
+            } recordings ${formatPathDate(new Date())}.zip`,
         },
     });
 };

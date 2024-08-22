@@ -38,6 +38,8 @@
         <div class="w-full h-full flex-row justify-center align-center">
             Audio only
         </div>
-        <audio bind:this={element} autoplay></audio>
+        {#if !muted}
+            <audio bind:this={element} autoplay></audio>
+        {/if}
     </div>
 {/if}

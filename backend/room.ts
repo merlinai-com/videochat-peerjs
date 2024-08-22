@@ -1,4 +1,3 @@
-import * as mime from "mime-types";
 import { Namespace } from "socket.io";
 import { SSO } from "sso";
 import { injectErrorHandler, UserError } from "./errorHandler.js";
@@ -9,6 +8,7 @@ import {
     type JsonSafe,
     type RoomId,
 } from "./lib/database.js";
+import { getZipPath } from "./lib/file.js";
 import { getUserNames } from "./lib/login.js";
 import {
     isSignalId,
@@ -26,13 +26,20 @@ import { Publisher, type Listeners, type Subscriber } from "./publisher.js";
 async function finishAndSendRecording(
     pub: Publisher<PublisherEvents>,
     db: Database,
+    sso: SSO,
     id: RecordingId
 ): Promise<void> {
     await db.finishRecording(id);
     const recording = await db.select(id);
+    const nameCache = await getUserNames(db, sso, [recording.user]);
     const attachment = await db.createAttachment(
         recording.file_id,
-        `Recording.${mime.extension(recording.mimeType)}`,
+        getZipPath(
+            recording,
+            Object.fromEntries(
+                nameCache.map(({ id, name }) => [Database.jsonSafe(id), name])
+            )
+        ),
         recording.mimeType,
         recording.group
     );
@@ -41,7 +48,7 @@ async function finishAndSendRecording(
         pub,
         recording.user,
         recording.group,
-        "",
+        recording.is_screen ? "recording (Screen Share)" : "recording",
         [attachment],
         true
     );
@@ -186,6 +193,7 @@ export function initRoomNamespace(
                     await finishAndSendRecording(
                         pub,
                         db,
+                        sso,
                         Database.parseRecord("recording", id)
                     );
                 }
@@ -340,6 +348,7 @@ export function initRoomNamespace(
             await finishAndSendRecording(
                 pub,
                 db,
+                sso,
                 Database.parseRecord("recording", id)
             );
         });

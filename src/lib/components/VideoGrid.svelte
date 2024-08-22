@@ -1,12 +1,14 @@
 <script lang="ts">
     import { findBestLayout } from "$lib/layout";
-    import { createEventDispatcher } from "svelte";
+    import { createEventDispatcher, onMount } from "svelte";
     import VideoPlayer from "./MediaPlayer.svelte";
 
     export let videos: MediaStream[];
     export let streams: { local?: MediaStream; screen?: MediaStream };
 
     const emit = createEventDispatcher<{ select: MediaStream }>();
+
+    let container: HTMLElement;
 
     /** Get metadata about videos */
     function getVideoLayouts(
@@ -33,13 +35,24 @@
 
     let client = { width: 1, height: 1 };
     $: layout = findBestLayout(client, getVideoLayouts(videos));
+
+    onMount(() => {
+        client.width = container.clientWidth;
+        client.height = container.clientHeight;
+
+        const observer = new ResizeObserver(() => {
+            client.width = container.clientWidth;
+            client.height = container.clientHeight;
+        });
+        observer.observe(container);
+        return () => observer.disconnect();
+    });
 </script>
 
 <div
     class="w-full h-full grid gap-3"
     style="grid-template-columns: repeat({layout.cols}, 1fr); grid-template-rows: repeat({layout.rows}, 1fr);"
-    bind:clientWidth={client.width}
-    bind:clientHeight={client.height}
+    bind:this={container}
 >
     {#each videos as stream (stream.id)}
         <div class="min-w-0 min-h-0">

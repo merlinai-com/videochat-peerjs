@@ -34,7 +34,7 @@ export function createRtcHandler(
     const peers: Record<string, PeerState> = {};
     const rtcConfig: RTCConfiguration = { iceServers };
 
-    window.Zap.webrtcStats = async () => {
+    window.Zap.debug.webrtcStats = async () => {
         const allStats = await Promise.all(
             Object.entries(peers).map(async ([id, peer]) => ({
                 id,

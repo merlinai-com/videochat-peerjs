@@ -1,4 +1,5 @@
 import { intervalToDuration, type Duration, type Interval } from "date-fns";
+import { format } from "date-fns/format";
 
 /* ================
 Callback operations
@@ -211,6 +212,11 @@ const secondsInDay = 24 * 60 * 60;
 
 export function daysToSeconds(days: number): number {
     return days * secondsInDay;
+}
+
+/** Format a date in a format suitable for a path */
+export function formatPathDate(date: Date): string {
+    return format(date, "yyyy-MM-dd_HH.mm.ss");
 }
 
 /** Sleep for `delay` milliseconds */

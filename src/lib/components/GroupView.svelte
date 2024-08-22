@@ -14,12 +14,13 @@
         GroupId,
         JsonSafe,
         Message,
+        MessageId,
         User,
     } from "backend/lib/database";
     import type { MessageSocket } from "backend/lib/types";
     import { groupBy, mergeBy, selectNonNull } from "backend/lib/utils";
     import { format } from "date-fns/format";
-    import { onMount } from "svelte";
+    import { afterUpdate, onMount } from "svelte";
     import MessageView from "./MessageView.svelte";
     import { AudioEngine } from "$lib/audio";
 
@@ -34,12 +35,16 @@
     let audio: AudioEngine<"message">;
     let users = createUserNamesStore();
 
+    let messageScroll: HTMLElement;
+    let scrollToBottom = false;
+
     $: title =
         selectedGroup &&
         (selectedGroup.type == "group" ? selectedGroup.name : "P2P");
     // : getOtherUser(selectedGroup.users, data.user?.email).email);
 
     let messages: JsonSafe<Message<Attachment>>[] = [];
+    let messageIds = new Set<JsonSafe<MessageId>>();
 
     /** The message that's currently being edited*/
     let message = {
@@ -113,9 +118,20 @@
         });
     }
 
-    function addMessages(m: JsonSafe<Message<Attachment>>[]) {
-        // TODO: add message ordering
-        messages = mergeBy(messages, m, "sent_time");
+    function addMessages(ms: JsonSafe<Message<Attachment>>[]) {
+        ms = ms.filter((m) => !messageIds.has(m.id));
+        for (const m of ms) messageIds.add(m.id);
+        if (ms.length > 0) {
+            // New messages
+            messages = mergeBy(messages, ms, "sent_time");
+
+            if (
+                messageScroll.scrollTop >=
+                messageScroll.scrollHeight - messageScroll.clientHeight - 1e-3
+            ) {
+                scrollToBottom = true;
+            }
+        }
     }
 
     onMount(() => {
@@ -138,6 +154,13 @@
         audio = new AudioEngine({ message: "/sounds/message.m4a" });
 
         return () => socket.close();
+    });
+
+    afterUpdate(() => {
+        if (scrollToBottom) {
+            messageScroll.scrollTop = messageScroll.scrollHeight;
+            scrollToBottom = false;
+        }
     });
 
     function dropHandler(event: DragEvent) {
@@ -183,13 +206,21 @@
                         )
                         .catch(console.error)}>Copy invite link</button
             >
-            <form action="/?/call_group" method="POST" use:enhance>
+            <form
+                action="/?/call_group"
+                method="POST"
+                use:enhance
+                on:submit={() => (window.Zap.connectImmediately = true)}
+            >
                 <input name="group" value={selectedGroup.id} hidden readonly />
                 <button>Call</button>
             </form>
         {/if}
 
-        <ul class="flex-col overflow-y-auto overflow-x-hidden min-h-0 min-w-0">
+        <ul
+            class="flex-col overflow-y-auto overflow-x-hidden min-h-0 min-w-0"
+            bind:this={messageScroll}
+        >
             {#each groupBy( messages, (m) => format(m.sent_time, "d MMMM yyyy") ) as { key, values }}
                 <span class="align-self-center text-translucent">
                     {key}

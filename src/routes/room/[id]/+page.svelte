@@ -304,9 +304,15 @@
             enabledMedia.audio = true;
             enabledMedia.video = true;
             handleMediaUpdate(socket, rtcHandler, "local");
+
+            if (window.Zap.connectImmediately && !state.connected) {
+                window.Zap.connectImmediately = false;
+                handlers.connect();
+            }
         });
 
         socket.emit("join_room", data.roomId);
+
         return () => handlers.cleanup();
     });
 </script>
@@ -426,7 +432,7 @@
             >
                 Stop Recording
             </button>
-            {#if recordings.length > 0}
+            {#if recordings.length > 0 && !state.recording}
                 <a
                     class="button"
                     href="/api/room/{data.roomId.replace(
@@ -449,6 +455,9 @@
                         {#each recordings as recording}
                             <li>
                                 {$userNameStore[recording.user] ?? "Unknown"}
+                                {#if recording.is_screen}
+                                    Screen Share
+                                {/if}
                                 (Start: {format(
                                     recording.startTime,
                                     "HH:mm:ss"

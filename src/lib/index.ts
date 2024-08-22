@@ -50,8 +50,11 @@ export function debug(topic: DebugTopic): boolean {
 
 declare global {
     interface Window {
-        Zap: Record<string, any>;
+        Zap: {
+            debug: Record<string, any>;
+            connectImmediately?: boolean;
+        };
     }
 }
 
-if (browser) window.Zap ??= {};
+if (browser) window.Zap ??= { debug: {} };

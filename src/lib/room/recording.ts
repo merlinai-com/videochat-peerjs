@@ -187,7 +187,7 @@ export async function createRecordingHandler(
         );
     });
 
-    window.Zap.$recordingHandlers = handlers;
+    window.Zap.debug.recordingHandlers = handlers;
 
     return handlers;
 }
