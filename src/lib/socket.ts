@@ -24,7 +24,10 @@ declare global {
 }
 
 function manager() {
-    return (window.manager ??= new Manager("/", { parser: msgpackParser }));
+    const url = new URL("/socket.io/", window.location.origin);
+    return (window.manager ??= new Manager(url.href, {
+        parser: msgpackParser,
+    }));
 }
 
 export function resetManager() {

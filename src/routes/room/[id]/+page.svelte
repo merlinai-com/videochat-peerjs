@@ -5,7 +5,7 @@
     import VideoGridSelected from "$lib/components/VideoGridSelected.svelte";
     import { createRecordingHandler, createRtcHandler } from "$lib/room";
     import type { MediaType, RtcHandler } from "$lib/room/webrtc";
-    import { message, room } from "$lib/socket";
+    import { message, resetManager, room } from "$lib/socket";
     import {
         createStore,
         createTimeStore,
@@ -350,6 +350,8 @@
     }
 
     onMount(async () => {
+        resetManager();
+
         now.pause();
 
         await acceptCookies;
