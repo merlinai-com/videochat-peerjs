@@ -191,13 +191,21 @@ export class AsyncQueue<T> extends Queue<T> {
     }
 
     private async _consume(
-        cb: (val: T, signal?: AbortSignal) => void | Promise<void>,
-        signal?: AbortSignal
+        cb: (val: T, signal?: AbortSignal) => void | PromiseLike<void>,
+        options: {
+            signal?: AbortSignal;
+            catch?: (error: any) => void | PromiseLike<void>;
+        }
     ) {
         while (true) {
-            signal?.throwIfAborted();
-            const val = await this.asyncPop({ signal });
-            await cb(val, signal);
+            options.signal?.throwIfAborted();
+            const val = await this.asyncPop(options);
+            try {
+                await cb(val, options.signal);
+            } catch (error) {
+                if (options.catch) await options.catch(error);
+                else throw error;
+            }
         }
     }
 
@@ -210,17 +218,19 @@ export class AsyncQueue<T> extends Queue<T> {
      * At most opts.workers values are processed at once.
      */
     async consume(
-        cb: (val: T, signal?: AbortSignal) => void | Promise<void>,
+        cb: (val: T, signal?: AbortSignal) => void | PromiseLike<void>,
         opts?: {
             /** The maximum number of workers to user. Default: 1 */
             workers?: number;
             /** The signal used to abort the operation */
             signal?: AbortSignal;
+            /** Catch any errors using this callback */
+            catch?: (error: any) => void | PromiseLike<void>;
         }
     ) {
         const tasks = [];
         for (let i = 0; i < (opts?.workers ?? 1); i++) {
-            tasks.push(this._consume(cb, opts?.signal));
+            tasks.push(this._consume(cb, { ...opts }));
         }
         await Promise.all(tasks);
     }
