@@ -19,6 +19,9 @@ export class Queue<T> {
         }
     }
 
+    /**
+     * Return contiguous half-open ranges of `this.array` in order.
+     */
     private contiguousRanges(): { start: number; stop: number }[] {
         if (this.start + this.length <= this.array.length) {
             return [{ start: this.start, stop: this.start + this.length }];
@@ -62,6 +65,21 @@ export class Queue<T> {
         }
     }
 
+    /** Prepend a value without reallocating */
+    private _pushFront(val: T) {
+        this.start -= 1;
+        if (this.start < 0) this.start += this.array.length;
+        this.length += 1;
+        this.array[this.start] = val;
+    }
+
+    pushFront(...vals: T[]) {
+        this.ensureExtraCapacity(this.length + vals.length);
+        for (let i = vals.length - 1; i >= 0; i--) {
+            this._pushFront(vals[i]);
+        }
+    }
+
     pop(): T | undefined {
         if (this.length === 0) {
             return undefined;
@@ -73,6 +91,34 @@ export class Queue<T> {
             if (this.start === this.array.length) this.start = 0;
             return val;
         }
+    }
+
+    /**
+     * Keep elements that satisfy the predicate.
+     *
+     * @returns The removed elements
+     */
+    keep(pred: (val: T) => boolean): T[] {
+        const ranges = this.contiguousRanges();
+        const removed = [];
+        this.length = 0;
+        for (let { start, stop } of ranges) {
+            for (let i = start; i < stop; i++) {
+                const val = this.array[i]!;
+                if (pred(val)) this._push(val);
+                else removed.push(val);
+            }
+        }
+        return removed;
+    }
+
+    /**
+     * Remove the given elements.
+     *
+     * @returns The removed elements
+     */
+    remove(...vals: T[]): T[] {
+        return this.keep((val) => !vals.includes(val));
     }
 
     [Symbol.iterator](): Iterator<T> {
@@ -88,8 +134,7 @@ export class Queue<T> {
 export class AsyncQueue<T> extends Queue<T> {
     private popQueue = new Queue<(val: T) => void>();
 
-    /** Push values synchronously */
-    push(...vals: T[]) {
+    private doPush(f: (this: Queue<T>, ...vals: T[]) => void, vals: T[]) {
         const claimed = vals.slice(0, this.popQueue.length);
         const toPush = vals.slice(this.popQueue.length);
 
@@ -97,11 +142,22 @@ export class AsyncQueue<T> extends Queue<T> {
             const callback = this.popQueue.pop()!;
             callback(val);
         }
-        Queue.prototype.push.apply(this, toPush);
+        f.apply(this, toPush);
+    }
+
+    /** Push values synchronously */
+    push(...vals: T[]) {
+        this.doPush(Queue.prototype.push, vals);
+    }
+
+    /** Push a value to the front of a queue */
+    pushFront(...vals: T[]) {
+        this.doPush(Queue.prototype.pushFront, vals);
     }
 
     /** Pop a value */
-    asyncPop(signal?: AbortSignal): Promise<T> {
+    asyncPop(options?: { signal?: AbortSignal }): Promise<T> {
+        const signal = options?.signal;
         return new Promise((resolve, reject) => {
             if (signal?.aborted) reject(signal.reason);
 
@@ -110,13 +166,15 @@ export class AsyncQueue<T> extends Queue<T> {
             } else {
                 if (signal) {
                     const onabort = () => {
+                        this.popQueue.remove(callback);
                         reject(signal.reason);
                     };
-                    signal.addEventListener("abort", onabort);
-                    this.popQueue.push((val) => {
+                    const callback = (val: T) => {
                         signal.removeEventListener("abort", onabort);
                         resolve(val);
-                    });
+                    };
+                    signal.addEventListener("abort", onabort);
+                    this.popQueue.push(callback);
                 } else {
                     this.popQueue.push(resolve);
                 }
@@ -138,7 +196,7 @@ export class AsyncQueue<T> extends Queue<T> {
     ) {
         while (true) {
             signal?.throwIfAborted();
-            const val = await this.asyncPop(signal);
+            const val = await this.asyncPop({ signal });
             await cb(val, signal);
         }
     }
