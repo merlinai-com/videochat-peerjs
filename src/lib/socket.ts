@@ -1,7 +1,7 @@
 import { debug, type DebugTopic } from "$lib";
 import type { EventsMap } from "@socket.io/component-emitter";
 import type { MessageSocket, RoomSocket } from "backend/lib/types";
-import { io, type Socket } from "socket.io-client";
+import { io, Manager, type Socket } from "socket.io-client";
 import msgpackParser from "socket.io-msgpack-parser";
 
 function initLogging(socket: Socket, topic: DebugTopic) {
@@ -17,8 +17,22 @@ function initLogging(socket: Socket, topic: DebugTopic) {
     }
 }
 
+declare global {
+    interface Window {
+        manager?: Manager;
+    }
+}
+
+function manager() {
+    return (window.manager ??= new Manager("/", { parser: msgpackParser }));
+}
+
+export function resetManager() {
+    window.manager = undefined;
+}
+
 export function room(): RoomSocket {
-    const socket: RoomSocket = io("/room", { parser: msgpackParser });
+    const socket: RoomSocket = manager().socket("/room");
     initLogging(socket, "socket/room");
     socket.on("error", (message, cause) => {
         if (cause) {
@@ -36,7 +50,7 @@ export function room(): RoomSocket {
 }
 
 export function message(): MessageSocket {
-    const socket = io("/message", { parser: msgpackParser });
+    const socket = manager().socket("/message");
     initLogging(socket, "socket/message");
     return socket;
 }

@@ -27,6 +27,8 @@
 
     export let data: PageData;
 
+    let acceptCookies: Promise<void>;
+
     /** Whether the user allows recordings */
     let allowRecording: Writable<boolean>;
     let requestAllowRecording: (options?: {
@@ -347,11 +349,12 @@
         return { rtcHandler, recordingHandler };
     }
 
-    onMount(() => {
+    onMount(async () => {
         now.pause();
 
+        await acceptCookies;
+
         const socket = room();
-        handlers.cleanup = tap(handlers.cleanup, () => socket.close());
 
         userNameStore = createUserNamesStore(message());
         allowRecording = createStore(sessionStorage, {
@@ -372,12 +375,10 @@
         });
 
         socket.emit("join_room", data.roomId);
-
-        return () => handlers.cleanup();
     });
 </script>
 
-<CookieNotice {data} name="require" />
+<CookieNotice {data} name="require" bind:acceptCookies />
 
 <AllowRecordingDialog
     bind:request={requestAllowRecording}

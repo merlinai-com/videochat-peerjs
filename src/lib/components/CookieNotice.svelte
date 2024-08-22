@@ -1,22 +1,35 @@
 <script lang="ts">
     import { enhance } from "$app/forms";
     import { page } from "$app/stores";
+    import { resetManager } from "$lib/socket";
     import { onMount } from "svelte";
 
     export let data: App.PageData;
     export let name: "permit" | "require" | undefined = undefined;
+    export let acceptCookies: Promise<void>;
 
     let dialog: HTMLDialogElement;
     let url: URL;
 
     let sso = false;
 
-    if (!data.acceptCookies)
+    let handlers: {
+        resolve: () => void;
+        reject: (error: any) => void;
+    };
+
+    if (data.acceptCookies) {
+        acceptCookies = Promise.resolve();
+    } else {
         onMount(() => {
-            dialog.showModal();
-            url = new URL($page.url);
-            url.searchParams.set("acceptCookies", "");
+            acceptCookies = new Promise((resolve, reject) => {
+                handlers = { resolve, reject };
+                dialog.showModal();
+                url = new URL($page.url);
+                url.searchParams.set("acceptCookies", "");
+            });
         });
+    }
 </script>
 
 <dialog bind:this={dialog}>
@@ -32,8 +45,13 @@
             class="flex-col align-left gap-3"
             action="/?/accept_cookies"
             method="POST"
-            use:enhance
-            on:submit={() => dialog.close()}
+            use:enhance={() =>
+                async ({ update }) => {
+                    await update();
+                    dialog.close();
+                    resetManager();
+                    handlers.resolve();
+                }}
         >
             <input name="redirect" value={$page.url} hidden readonly />
             <label
@@ -63,7 +81,8 @@
             {/if}
             <button type="submit">Accept Cookies</button>
             <span class={sso ? "" : "invisible"}>
-                You will be redirected to {new URL(data.authURLs.login).origin}
+                After clicking Accept, you will be redirected to
+                {new URL(data.authURLs.login).origin}
                 to log in
             </span>
         </form>
