@@ -12,6 +12,8 @@ export type ChunkedRecording = {
 export interface RecordingHandler {
     start: (emit: boolean) => Promise<void>;
     stop: (emit: boolean) => Promise<void>;
+    /** Start the upload task */
+    startUpload: () => void;
 }
 
 const videoStore = "video";
@@ -60,6 +62,8 @@ export async function createRecordingHandler(
     const mimeType = videoMimeTypes.find(MediaRecorder.isTypeSupported);
     if (!mimeType) throw new Error("No support recorder MIME types");
 
+    let uploadTask: Promise<void> | undefined;
+
     // const db = await initIndexedDb();
     let recordings: Record<JsonSafe<RecordingId>, ChunkedRecording> = {};
 
@@ -74,36 +78,22 @@ export async function createRecordingHandler(
           }
         | { ev: "upload_stop"; id: JsonSafe<RecordingId>; count: number }
     >();
-    callbackQueue
-        .consume(
-            async (val) => {
-                if (val.ev === "upload_chunk") {
-                    socket.emit(
-                        "upload_chunk",
-                        val.id,
-                        await val.data,
-                        val.index
-                    );
-                } else {
-                    socket.emit("upload_stop", val.id, val.count);
-                }
-            },
-            { signal }
-        )
-        .catch((error) => console.error("In upload queue handler:", error));
 
     const startRecorder = async (stream: MediaStream, is_screen: boolean) => {
+        const startTime = new Date();
         const { error, id } = await socket.emitWithAck("upload_start", {
             mimeType,
             is_screen,
+            startTime,
         });
         if (error !== undefined) throw new Error(error);
 
         const recorder = new MediaRecorder(stream, { mimeType });
         mediaRecorders.add(recorder);
+
         const currentRecording = {
             id,
-            startTime: new Date(),
+            startTime,
             data: [] as Promise<ArrayBuffer>[],
         };
         recordings[id] = currentRecording;
@@ -120,6 +110,7 @@ export async function createRecordingHandler(
                 });
             }
         });
+
         recorder.addEventListener("stop", async () => {
             mediaRecorders.delete(recorder);
             // const recording = {
@@ -136,6 +127,7 @@ export async function createRecordingHandler(
             });
             // await saveRecording(db, recording);
         });
+
         recorder.start(uploadInterval);
     };
 
@@ -167,6 +159,28 @@ export async function createRecordingHandler(
 
             state.recording = false;
             callbacks.afterStop();
+        },
+
+        startUpload() {
+            uploadTask ??= callbackQueue
+                .consume(
+                    async (val) => {
+                        if (val.ev === "upload_chunk") {
+                            socket.emit(
+                                "upload_chunk",
+                                val.id,
+                                await val.data,
+                                val.index
+                            );
+                        } else {
+                            socket.emit("upload_stop", val.id, val.count);
+                        }
+                    },
+                    { signal }
+                )
+                .catch((error) =>
+                    console.error("In upload queue handler:", error)
+                );
         },
     };
 

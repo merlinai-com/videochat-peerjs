@@ -20,19 +20,27 @@ export const actions: Actions = {
     accept_cookies: async (event) => {
         const data = await event.request.formData();
         const url = data.get("redirect");
-        const allow_recording = data.get("allow-recording") != null;
+        const allow_recording = data.get("allow-recording") !== null;
+        const name = data.get("name") ?? undefined;
+        const useSso = data.get("sso") !== null;
+
+        if (url && typeof url !== "string")
+            throw error(422, "url should be a string");
+        if (name && typeof name !== "string")
+            throw error(422, "Name should be a string");
 
         event.locals.setAcceptCookies(true);
 
-        if (allow_recording) {
+        if (allow_recording || name) {
             const user = await getUser(database, {
                 ssoUser: event.locals.ssoUser,
                 cookies: event.cookies,
                 create: true,
             });
-            await database.merge(user.id, { allow_recording });
+            await database.merge(user.id, { allow_recording, name });
         }
 
+        if (useSso) throw redirect(303, sso.loginURL(url ?? event.url));
         if (typeof url === "string") throw redirect(303, url);
     },
 

@@ -127,12 +127,13 @@ export function initRoomNamespace(
             recordings(rs) {
                 socket.emit("recordings", rs);
             },
-            connected(peerId) {
+            connected(peerId, user) {
                 if (connected && signalId !== peerId) {
                     socket.emit("connect_to", { id: peerId, polite: true });
                     pub.publish(peerId, "connect_to", {
                         id: signalId,
                         polite: false,
+                        user,
                     });
                 }
             },
@@ -228,7 +229,11 @@ export function initRoomNamespace(
 
         socket.on("connect_to", () => {
             if (!socket.data.roomId) throw new UserError("Not in a room");
-            roomSub?.publish("connected", signalId);
+            roomSub?.publish(
+                "connected",
+                signalId,
+                socket.data.user && Database.jsonSafe(socket.data.user.id)
+            );
             connected = true;
         });
 
@@ -270,29 +275,34 @@ export function initRoomNamespace(
             { nextIndex: number }
         > = {};
 
-        socket.on("upload_start", async ({ mimeType, is_screen }, callback) => {
-            if (!socket.data.user) return callback({ error: "Not logged in" });
-            if (!socket.data.roomId)
-                return callback({ error: "join_room has not been called" });
+        socket.on(
+            "upload_start",
+            async ({ mimeType, is_screen, startTime }, callback) => {
+                if (!socket.data.user)
+                    return callback({ error: "Not logged in" });
+                if (!socket.data.roomId)
+                    return callback({ error: "join_room has not been called" });
 
-            const id = await db.createRecording({
-                user: socket.data.user.id,
-                mimeType,
-                room: socket.data.roomId,
-                is_screen,
-            });
-            recordings.add(Database.jsonSafe(id));
-            seenChunks[Database.jsonSafe(id)] = { nextIndex: 0 };
-            callback({ id: Database.jsonSafe(id) });
-            pub.publish(
-                "upload",
-                "start",
-                Database.jsonSafe(socket.data.user.id),
-                Database.jsonSafe(id),
-                mimeType
-            );
-            await updateRoom("recordings");
-        });
+                const id = await db.createRecording({
+                    user: socket.data.user.id,
+                    mimeType,
+                    room: socket.data.roomId,
+                    is_screen,
+                    startTime,
+                });
+                recordings.add(Database.jsonSafe(id));
+                seenChunks[Database.jsonSafe(id)] = { nextIndex: 0 };
+                callback({ id: Database.jsonSafe(id) });
+                pub.publish(
+                    "upload",
+                    "start",
+                    Database.jsonSafe(socket.data.user.id),
+                    Database.jsonSafe(id),
+                    mimeType
+                );
+                await updateRoom("recordings");
+            }
+        );
 
         socket.on("upload_chunk", async (id, data, index) => {
             if (!socket.data.user) throw new UserError("Not logged in");

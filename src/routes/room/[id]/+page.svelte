@@ -12,13 +12,14 @@
         createUserNamesStore,
     } from "$lib/stores";
     import type { JsonSafe, Recording, UserId } from "backend/lib/database";
-    import type { RoomSocket } from "backend/lib/types";
+    import type { RoomSocket, SignalId } from "backend/lib/types";
     import { formatTime } from "backend/lib/utils";
     import { format } from "date-fns/format";
     import { onMount } from "svelte";
     import type { PageData } from "./$types";
     import type { Writable } from "svelte/store";
     import AllowRecordingDialog from "$lib/components/AllowRecordingDialog.svelte";
+    import CookieNotice from "$lib/components/CookieNotice.svelte";
 
     const now = createTimeStore(() => new Date(), {
         interval: 100,
@@ -41,8 +42,11 @@
     /** The id of the current screen share*/
     let selectedStream: MediaStream | undefined;
     $: ensureSelectedStreamExists(videos);
-    function ensureSelectedStreamExists(videos: MediaStream[]) {
-        if (selectedStream && !videos.includes(selectedStream))
+    function ensureSelectedStreamExists(videos: { stream: MediaStream }[]) {
+        if (
+            selectedStream &&
+            !videos.some(({ stream }) => selectedStream === stream)
+        )
             selectedStream = undefined;
     }
 
@@ -56,11 +60,21 @@
     /** The start time of the current recording */
     let recordingStartTime = new Date();
 
-    /** A map from peer IDs to media streams */
-    let peers: Record<string, Set<MediaStream>> = {};
+    /** A map from signal IDs to media streams */
+    let peers: Record<
+        SignalId,
+        { user?: JsonSafe<UserId>; streams: Set<MediaStream> }
+    > = {};
     $: videos = [
-        ...Object.values(peers).flatMap((streams) => [...streams]),
-        ...Object.values(streams).filter((stream) => stream),
+        ...Object.values(peers).flatMap(({ user, streams }) =>
+            [...streams].map((stream) => ({
+                name: user && ($userNameStore[user] ?? user),
+                stream,
+            }))
+        ),
+        ...Object.values(streams)
+            .filter((stream) => stream)
+            .map((stream) => ({ name: "Me", stream })),
     ];
 
     /** The list of users currently in the room */
@@ -90,36 +104,68 @@
         type: keyof typeof streams
     ) {
         switch (type) {
-            case "local":
-                if (streams.local) {
+            case "local": {
+                let hasAudio =
+                    !!streams.local &&
+                    streams.local.getAudioTracks().length > 0;
+                let hasVideo =
+                    !!streams.local &&
+                    streams.local.getVideoTracks().length > 0;
+
+                // We have a stream and don't need one
+                const removeStream =
+                    streams.local && !enabledMedia.audio && !enabledMedia.video;
+                if (removeStream && streams.local) {
                     rtcHandler.removeStream(streams.local);
+                    streams.local.getTracks().forEach((track) => track.stop());
                     streams.local = undefined;
+                    break;
                 }
 
-                if (enabledMedia.video || enabledMedia.audio) {
-                    try {
-                        streams.local =
-                            await window.navigator.mediaDevices.getUserMedia({
-                                video: enabledMedia.video,
-                                audio: enabledMedia.audio && {
-                                    echoCancellation: true,
-                                },
-                            });
-                    } catch (error) {
-                        console.error("Unable to get user media:", error);
-                        return;
+                // We don't have all the required tracks, so initiate another getUserMedia request
+                const addStream =
+                    (!hasAudio && enabledMedia.audio) ||
+                    (!hasVideo && enabledMedia.video);
+                if (addStream) {
+                    const newStream =
+                        await window.navigator.mediaDevices.getUserMedia({
+                            video: enabledMedia.video,
+                            audio: enabledMedia.audio && {
+                                echoCancellation: true,
+                            },
+                        });
+                    if (streams.local) {
+                        console.log("replace stream");
+                        rtcHandler.removeStream(streams.local);
                     }
-
+                    streams.local = newStream;
                     rtcHandler.addStream(streams.local);
+                    break;
                 }
 
-                break;
+                // We have all the required tracks, and should stop any uneeded tracks
+                if (!enabledMedia.audio) {
+                    streams.local?.getAudioTracks().forEach((track) => {
+                        streams.local?.removeTrack(track);
+                        rtcHandler.removeTrack(track);
+                    });
+                }
+                if (!enabledMedia.video) {
+                    streams.local?.getVideoTracks().forEach((track) => {
+                        streams.local?.removeTrack(track);
+                        rtcHandler.removeTrack(track);
+                    });
+                }
 
-            case "screen":
+                // Ensure the UI updates
+                streams.local = streams.local;
+                break;
+            }
+
+            case "screen": {
                 if (streams.screen) {
                     rtcHandler.removeStream(streams.screen);
                     streams.screen = undefined;
-                    selectedStream = undefined;
                 }
 
                 if (enabledMedia.screen) {
@@ -160,6 +206,7 @@
                 }
 
                 break;
+            }
         }
     }
 
@@ -192,9 +239,11 @@
         socket.on("screen_share", (arg) => {
             // Disable screen share if another user starts
             if (arg && streams.screen) handlers.toggleMedia("screen");
-            selectedStream = Object.values(peers)
-                .flatMap((streams) => [...streams])
-                .find((stream) => stream.id == arg.streamId);
+            selectedStream =
+                Object.values(peers)
+                    .flatMap(({ streams }) => [...streams])
+                    .find((stream) => stream.id == arg.streamId) ??
+                selectedStream;
         });
 
         socket.on("users", (us) => (users = us));
@@ -209,13 +258,15 @@
             streams,
             state,
             {
+                addPeer(id, user) {
+                    peers[id] = { user, streams: new Set() };
+                },
                 addStream(id, stream) {
-                    peers[id] ??= new Set();
-                    peers[id].add(stream);
+                    peers[id]?.streams.add(stream);
                     peers = peers;
                 },
                 removeStream(id, stream) {
-                    peers[id]?.delete(stream);
+                    peers[id]?.streams.delete(stream);
                     peers = peers;
                 },
                 removePeer(id) {
@@ -260,10 +311,19 @@
 
         socket.on("recording", async ({ action }) => {
             if (action === "start") {
-                if (!$allowRecording) {
-                    await requestAllowRecording({
-                        signal: allowRecordingAc?.signal,
-                    });
+                recordingHandler.start(false);
+
+                if ($allowRecording) {
+                    recordingHandler.startUpload();
+                } else {
+                    try {
+                        await requestAllowRecording({
+                            signal: allowRecordingAc?.signal,
+                        });
+                        recordingHandler.startUpload();
+                    } catch {
+                        await recordingHandler.stop(false);
+                    }
                 }
                 recordingHandler.start(true);
             } else {
@@ -316,6 +376,8 @@
         return () => handlers.cleanup();
     });
 </script>
+
+<CookieNotice {data} name="require" />
 
 <AllowRecordingDialog
     bind:request={requestAllowRecording}

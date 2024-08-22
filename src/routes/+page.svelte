@@ -1,4 +1,5 @@
 <script lang="ts">
+    import CookieNotice from "$lib/components/CookieNotice.svelte";
     import GroupSelector from "$lib/components/GroupSelector.svelte";
     import Login from "$lib/components/Login.svelte";
     import PickName from "$lib/components/PickName.svelte";
@@ -7,6 +8,8 @@
     export let data: PageData;
     export let form: ActionData;
 </script>
+
+<CookieNotice {data} />
 
 <div class="root flex-col gap-3">
     <nav>

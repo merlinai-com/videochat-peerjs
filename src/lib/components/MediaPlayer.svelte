@@ -2,6 +2,7 @@
     import { createEventDispatcher, onMount } from "svelte";
 
     export let stream: MediaStream;
+    export let name: string | undefined = undefined;
     export let muted: boolean = false;
     export let class_ = "";
 
@@ -35,8 +36,9 @@
     </video>
 {:else}
     <div class={class_}>
-        <div class="w-full h-full flex-row justify-center align-center">
-            Audio only
+        <div class="w-full h-full flex-col justify-center align-center">
+            <span>{name}</span>
+            <span>Audio only</span>
         </div>
         {#if !muted}
             <audio bind:this={element} autoplay></audio>

@@ -373,6 +373,7 @@ export class Database extends Emitter<{ user: [Action, User] }> {
         mimeType: string;
         room: RoomId;
         is_screen: boolean;
+        startTime: Date;
     }): Promise<RecordingId> {
         return await this.run(
             "fn::createRecording",

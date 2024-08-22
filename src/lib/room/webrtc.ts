@@ -1,4 +1,5 @@
-import type { RoomSocket } from "backend/lib/types";
+import type { JsonSafe, UserId } from "backend/lib/database";
+import type { RoomSocket, SignalId } from "backend/lib/types";
 import "webrtc-adapter";
 
 interface PeerState {
@@ -8,6 +9,7 @@ interface PeerState {
     ignoreOffer: boolean;
     settingRemoteAnswer: boolean;
     senders: Map<MediaStreamTrack, RTCRtpSender>;
+    user?: JsonSafe<UserId>;
 }
 
 const mediaTypes = ["video", "audio", "screen"] as const;
@@ -17,6 +19,7 @@ export type MediaRecord = { local?: MediaStream; screen?: MediaStream };
 export interface RtcHandler {
     disconnectAll: () => void;
     removeStream: (stream: MediaStream) => void;
+    removeTrack: (track: MediaStreamTrack) => void;
     addStream: (stream: MediaStream) => void;
 }
 
@@ -26,9 +29,10 @@ export function createRtcHandler(
     streams: MediaRecord,
     state: { connected: boolean },
     callbacks: {
-        addStream: (id: string, stream: MediaStream) => void;
-        removeStream: (id: string, stream: MediaStream) => void;
-        removePeer: (id: string) => void;
+        addPeer: (id: SignalId, user?: JsonSafe<UserId>) => void;
+        addStream: (id: SignalId, stream: MediaStream) => void;
+        removeStream: (id: SignalId, stream: MediaStream) => void;
+        removePeer: (id: SignalId) => void;
     }
 ): RtcHandler {
     const peers: Record<string, PeerState> = {};
@@ -89,8 +93,10 @@ export function createRtcHandler(
         }
     });
 
-    socket.on("connect_to", ({ id, polite }) => {
+    socket.on("connect_to", ({ id, polite, user }) => {
         if (!state.connected) return;
+
+        callbacks.addPeer(id, user);
 
         // Initialise the peer connection
         const pc = (peers[id] ??= {
@@ -100,17 +106,27 @@ export function createRtcHandler(
             ignoreOffer: false,
             settingRemoteAnswer: false,
             senders: new Map(),
+            user,
         });
 
-        pc.conn.addEventListener("track", ({ track, streams, receiver }) => {
+        function onRemoveTrack(this: MediaStream, ev: MediaStreamTrackEvent) {
+            if (this.active) callbacks.addStream(id, this);
+            else callbacks.removeStream(id, this);
+        }
+
+        pc.conn.addEventListener("track", ({ track, streams }) => {
             for (const stream of streams) {
-                stream.addEventListener("removetrack", () => {
-                    if (!stream.active) callbacks.removeStream(id, stream);
-                });
+                stream.addEventListener("removetrack", onRemoveTrack);
             }
             track.addEventListener("unmute", () => {
                 for (const stream of streams) {
                     callbacks.addStream(id, stream);
+                }
+            });
+            track.addEventListener("ended", () => {
+                console.log(`${track.kind} track ended`);
+                for (const stream of streams) {
+                    if (!stream.active) callbacks.removeStream(id, stream);
                 }
             });
         });
@@ -141,7 +157,7 @@ export function createRtcHandler(
         }
     });
 
-    const disconnect = ({ id }: { id: string }) => {
+    const disconnect = ({ id }: { id: SignalId }) => {
         try {
             peers[id]?.conn.close();
         } catch (err) {
@@ -156,7 +172,7 @@ export function createRtcHandler(
 
     const handler: RtcHandler = {
         disconnectAll() {
-            for (const id in peers) disconnect({ id });
+            for (const id in peers) disconnect({ id: id as SignalId });
         },
 
         addStream(stream) {
@@ -170,14 +186,18 @@ export function createRtcHandler(
             }
         },
 
+        removeTrack(track) {
+            for (const peer of Object.values(peers)) {
+                const sender = peer.senders.get(track);
+                if (sender) peer.conn.removeTrack(sender);
+                peer.senders.delete(track);
+            }
+            track.stop();
+        },
+
         removeStream(stream) {
             for (const track of stream.getTracks()) {
-                for (const peer of Object.values(peers)) {
-                    const sender = peer.senders.get(track);
-                    if (sender) peer.conn.removeTrack(sender);
-                    peer.senders.delete(track);
-                }
-                track.stop();
+                handler.removeTrack(track);
             }
         },
     };

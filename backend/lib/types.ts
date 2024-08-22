@@ -46,7 +46,9 @@ export interface RoomServerToClientEvents
     }) => void;
 
     /** A user connected, and each client should connect */
-    connect_to: (arg: { id: SignalId; polite: boolean }) => void;
+    connect_to: (
+        arg: JsonSafe<{ id: SignalId; user?: UserId; polite: boolean }>
+    ) => void;
 
     /** A user disconnected */
     disconnect_from: (arg: { id: SignalId }) => void;
@@ -98,7 +100,7 @@ export interface RoomClientToServerEvents {
 
     /** Start a recording */
     upload_start: (
-        arg: { mimeType: string; is_screen: boolean },
+        arg: { mimeType: string; is_screen: boolean; startTime: Date },
         callback: (
             arg:
                 | { id: JsonSafe<RecordingId>; error?: never }
@@ -190,7 +192,7 @@ export type UserEvents = RoomServerToClientEvents;
 
 export interface RoomEvents {
     /** A user has connected to the call */
-    connected: (id: SignalId) => void;
+    connected: (id: SignalId, user?: JsonSafe<UserId>) => void;
     /** A user has disconnected from the call */
     disconnected: (id: SignalId) => void;
     /** The list of users in the room has been updated */

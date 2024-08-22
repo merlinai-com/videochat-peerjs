@@ -231,12 +231,13 @@ DEFINE FUNCTION fn::createRecording(
     $mimeType: string,
     $room: record<room>,
     $is_screen: bool,
+    $startTime: datetime,
 ) {
     LET $recording = (CREATE ONLY recording:uuid() SET
         user = $user,
         mimeType = $mimeType,
         is_screen = $is_screen,
-        startTime = time::now(),
+        startTime = $startTime,
         file_id = rand::uuid::v7(),
         group = $room.group
     );

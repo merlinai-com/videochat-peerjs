@@ -36,7 +36,7 @@
     let users = createUserNamesStore();
 
     let messageScroll: HTMLElement;
-    let scrollToBottom = false as false | "instant" | "auto";
+    let scrollToBottom = false;
 
     $: title =
         selectedGroup &&
@@ -129,7 +129,7 @@
                 messageScroll.scrollTop >=
                 messageScroll.scrollHeight - messageScroll.clientHeight - 5
             ) {
-                scrollToBottom = messages.length === 0 ? "instant" : "auto";
+                scrollToBottom = true;
             }
 
             messages = mergeBy(messages, ms, "sent_time");
@@ -160,9 +160,7 @@
 
     afterUpdate(() => {
         if (scrollToBottom) {
-            messageScroll.lastElementChild?.scrollIntoView({
-                behavior: scrollToBottom,
-            });
+            messageScroll.scrollTop = messageScroll.scrollHeight;
             scrollToBottom = false;
         }
     });
@@ -208,8 +206,10 @@
                                 window.location.origin
                             ).href
                         )
-                        .catch(console.error)}>Copy invite link</button
+                        .catch(console.error)}
             >
+                Copy invite link
+            </button>
             <form
                 action="/?/call_group"
                 method="POST"
