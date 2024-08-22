@@ -97,15 +97,13 @@
     }
 
     async function sendMessage(message: {
-        groupId: JsonSafe<GroupId>;
+        group: JsonSafe<GroupId>;
         content: string;
         attachments: File[];
     }) {
         const attachments: JsonSafe<AttachmentId>[] = [];
         for (const attachment of message.attachments) {
-            attachments.push(
-                await getAttachmentId(attachment, message.groupId)
-            );
+            attachments.push(await getAttachmentId(attachment, message.group));
         }
 
         await ensureEmit(socket, {}, "send", {
@@ -212,7 +210,7 @@
             on:submit|preventDefault={() => {
                 sendMessage({
                     ...message,
-                    groupId: selectedGroup.id,
+                    group: selectedGroup.id,
                 });
                 message = { content: "", attachments: [] };
             }}

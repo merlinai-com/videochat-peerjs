@@ -28,6 +28,8 @@ DEFINE FIELD content ON message TYPE string;
 DEFINE FIELD attachments ON message TYPE array<record<attachment>>;
 -- The time the message was sent
 DEFINE FIELD sent_time ON message TYPE datetime;
+-- Was the message sent by the system
+DEFINE FIELD system ON message TYPE bool DEFAULT false;
 DEFINE INDEX message__out ON message FIELDS out;
 
 
@@ -176,9 +178,9 @@ DEFINE FUNCTION fn::createAttachment($file_id: uuid, $name: string, $mime_type: 
 };
 
 -- Send a message to a group
-DEFINE FUNCTION fn::sendMessage($from: record<user>, $to: record<group>, $content: string, $attachments: array<record<attachment>>) {
-    LET $message = (RELATE ONLY $from->message->$to SET content = $content, attachments = $attachments, sent_time = time::now()).id;
-    RETURN (SELECT * FROM ONLY $message FETCH attachments[*]);
+DEFINE FUNCTION fn::sendMessage($from: record<user>, $to: record<group>, $content: string, $attachments: array<record<attachment>>, $system: bool) {
+    LET $message = (RELATE ONLY $from->message->$to SET content = $content, attachments = $attachments, sent_time = time::now(), system = $system);
+    RETURN (SELECT * FROM ONLY $message.id FETCH attachments[*]);
 };
 
 -- Get messages from a group

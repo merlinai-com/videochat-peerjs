@@ -36,9 +36,15 @@ async function finishAndSendRecording(
         recording.mimeType,
         recording.group
     );
-    await sendMessage(db, pub, recording.user, recording.group, "", [
-        attachment,
-    ]);
+    await sendMessage(
+        db,
+        pub,
+        recording.user,
+        recording.group,
+        "",
+        [attachment],
+        true
+    );
 }
 
 async function assertIsRecordingOwner(

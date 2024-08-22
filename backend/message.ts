@@ -24,9 +24,10 @@ export async function sendMessage(
     from: UserId,
     to: GroupId,
     content: string,
-    attachments: AttachmentId[]
+    attachments: AttachmentId[],
+    system: boolean
 ) {
-    const m = await db.sendMessage(from, to, content, attachments);
+    const m = await db.sendMessage(from, to, content, attachments, system);
 
     pub.publish(Database.jsonSafe(to), "message", Database.jsonSafe(m));
 }
@@ -118,7 +119,8 @@ export function initMessageNamespace(
                     arg.content,
                     arg.attachments.map((a) =>
                         Database.parseRecord("attachment", a)
-                    )
+                    ),
+                    false
                 );
 
                 callback();

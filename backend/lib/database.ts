@@ -320,9 +320,17 @@ export class Database extends Emitter<{ user: [Action, User] }> {
         from: UserId,
         to: GroupId,
         content: string,
-        attachment: AttachmentId[]
+        attachment: AttachmentId[],
+        system: boolean
     ): Promise<Message<Attachment>> {
-        return await this.run("fn::sendMessage", from, to, content, attachment);
+        return await this.run(
+            "fn::sendMessage",
+            from,
+            to,
+            content,
+            attachment,
+            system
+        );
     }
 
     async getMessages(group: GroupId): Promise<Message<Attachment>[]> {
