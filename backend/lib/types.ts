@@ -56,6 +56,15 @@ export interface RoomServerToClientEvents
 
     /** An error occured */
     error: (message: string, cause?: keyof RoomClientToServerEvents) => void;
+
+    /** Request an upload chunk */
+    request_upload_chunk: (
+        id: JsonSafe<RecordingId>,
+        /** The first chunk to resend */
+        start: number,
+        /** One after the last chunk to resend */
+        stop: number
+    ) => void;
 }
 
 export interface RoomClientToServerEvents {
@@ -97,7 +106,11 @@ export interface RoomClientToServerEvents {
         ) => void
     ) => void;
     /** A chunk of a recording */
-    upload_chunk: (id: JsonSafe<RecordingId>, data: ArrayBuffer) => void;
+    upload_chunk: (
+        id: JsonSafe<RecordingId>,
+        data: ArrayBuffer,
+        index: number
+    ) => void;
     /** Stop a recording */
     upload_stop: (id: JsonSafe<RecordingId>, count: number) => void;
 }
@@ -129,7 +142,7 @@ export interface MessageClientToServerEvents {
     /** Send a message */
     send: (
         arg: {
-            groupId: JsonSafe<GroupId>;
+            group: JsonSafe<GroupId>;
             content: string;
             msgId: UUID;
             attachments: JsonSafe<AttachmentId>[];
@@ -208,7 +221,7 @@ export interface UploadEvents {
     chunk: (
         from: JsonSafe<UserId>,
         id: JsonSafe<RecordingId>,
-        data: Buffer
+        data: ArrayBuffer
     ) => void;
     stop: (from: JsonSafe<UserId>, id: JsonSafe<RecordingId>) => void;
 }

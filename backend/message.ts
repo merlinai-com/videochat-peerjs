@@ -1,7 +1,13 @@
 import { Namespace } from "socket.io";
 import { SSO } from "sso";
 import { injectErrorHandler } from "./errorHandler.js";
-import { Database, type GroupId, type JsonSafe } from "./lib/database.js";
+import {
+    AttachmentId,
+    Database,
+    UserId,
+    type GroupId,
+    type JsonSafe,
+} from "./lib/database.js";
 import { getUserNames } from "./lib/login.js";
 import type {
     InterServerEvents,
@@ -10,7 +16,20 @@ import type {
     MessageSocketData,
     PublisherEvents,
 } from "./lib/types.js";
-import { type Listeners, Publisher, Subscriber } from "./publisher.js";
+import { Publisher, Subscriber, type Listeners } from "./publisher.js";
+
+export async function sendMessage(
+    db: Database,
+    pub: Publisher<PublisherEvents>,
+    from: UserId,
+    to: GroupId,
+    content: string,
+    attachments: AttachmentId[]
+) {
+    const m = await db.sendMessage(from, to, content, attachments);
+
+    pub.publish(Database.jsonSafe(to), "message", Database.jsonSafe(m));
+}
 
 function ensureSub(
     pub: Publisher<PublisherEvents>,
@@ -91,21 +110,15 @@ export function initMessageNamespace(
             if (!socket.data.user) return callback("Not logged in");
 
             try {
-                const m = await db.sendMessage(
+                await sendMessage(
+                    db,
+                    pub,
                     socket.data.user.id,
-                    Database.parseRecord("group", arg.groupId),
+                    Database.parseRecord("group", arg.group),
                     arg.content,
-                    arg.attachments.map((id) =>
-                        Database.parseRecord("attachment", id)
+                    arg.attachments.map((a) =>
+                        Database.parseRecord("attachment", a)
                     )
-                );
-
-                pub.publish(
-                    Database.jsonSafe(
-                        Database.parseRecord("group", arg.groupId)
-                    ),
-                    "message",
-                    Database.jsonSafe(m)
                 );
 
                 callback();

@@ -39,6 +39,7 @@ DEFINE FIELD startTime ON recording TYPE datetime;
 DEFINE FIELD endTime ON recording TYPE option<datetime>;
 DEFINE FIELD is_screen ON recording TYPE bool;
 DEFINE FIELD file_id ON recording TYPE uuid;
+DEFINE FIELD group ON recording TYPE record<group>;
 
 
 -- A room - ie a temporary group of users who are all in a call together
@@ -234,7 +235,8 @@ DEFINE FUNCTION fn::createRecording(
         mimeType = $mimeType,
         is_screen = $is_screen,
         startTime = time::now(),
-        file_id = rand::uuid::v7()
+        file_id = rand::uuid::v7(),
+        group = $room.group
     );
     UPDATE $room SET recordings += $recording.id;
     RETURN $recording.id;
@@ -242,10 +244,4 @@ DEFINE FUNCTION fn::createRecording(
 
 DEFINE FUNCTION fn::isRecordingOwner($user: record<user>, $recording: record<recording>) {
     RETURN $recording.user == $user;
-};
-
-DEFINE FUNCTION fn::finishRecording($user: record<user>, $recording: record<recording>) {
-    IF $recording.user == $user {
-        UPDATE $recording SET endTime = time::now();
-    };
 };

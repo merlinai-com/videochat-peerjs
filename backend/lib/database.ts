@@ -45,6 +45,7 @@ export type Recording = {
     endTime?: Date;
     is_screen: boolean;
     file_id: UUID;
+    group: GroupId;
 };
 
 export type RoomId = RecordId<"room">;
@@ -242,6 +243,7 @@ export class Database extends Emitter<{ user: [Action, User] }> {
     }
 
     async merge(id: UserId, data: Partial<User>): Promise<void>;
+    async merge(id: RecordingId, data: Partial<Recording>): Promise<void>;
     async merge(id: RecordId, data: any): Promise<void> {
         return await this.retryOnBusy(async function () {
             await this.surreal.merge(id, data);
@@ -380,7 +382,7 @@ export class Database extends Emitter<{ user: [Action, User] }> {
         return await this.run("fn::isRecordingOwner", owner, recording);
     }
 
-    async finishRecording(user: UserId, recording: RecordingId): Promise<void> {
-        await this.run("fn::finishRecording", user, recording);
+    async finishRecording(recording: RecordingId): Promise<void> {
+        await this.merge(recording, { endTime: new Date() });
     }
 }

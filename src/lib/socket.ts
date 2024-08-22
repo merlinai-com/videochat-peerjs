@@ -75,7 +75,7 @@ export async function ensureEmit<
             // @ts-ignore
             return await socket.timeout(timeout).emitWithAck(event, ...args);
         } catch (error) {
-            console.error(`Unable to emit ${event.toString()}:`, error);
+            console.error(`Unable to emit event ${event.toString()}:`, error);
             timeout = Math.min(timeout + opts.timeoutStep, opts.timeoutMax);
         }
     }

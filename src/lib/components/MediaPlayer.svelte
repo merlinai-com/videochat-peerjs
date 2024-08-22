@@ -13,10 +13,11 @@
     let element: HTMLVideoElement | HTMLAudioElement;
     $: hasVideo = stream.getVideoTracks().length > 0;
 
-    onMount(() => {
-        element.srcObject = stream;
-        element.play();
-    });
+    $: updateSrcObject(stream);
+    function updateSrcObject(stream: MediaStream) {
+        if (element) element.srcObject = stream;
+    }
+    onMount(() => updateSrcObject(stream));
 </script>
 
 <!-- svelte-ignore a11y-media-has-caption -->
@@ -28,6 +29,7 @@
         bind:this={element}
         disablepictureinpicture
         on:contextmenu|preventDefault
+        autoplay
         {muted}
     >
     </video>
@@ -36,6 +38,6 @@
         <div class="w-full h-full flex-row justify-center align-center">
             Audio only
         </div>
-        <audio bind:this={element}></audio>
+        <audio bind:this={element} autoplay></audio>
     </div>
 {/if}

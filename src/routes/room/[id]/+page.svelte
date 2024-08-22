@@ -28,7 +28,9 @@
 
     /** Whether the user allows recordings */
     let allowRecording: Writable<boolean>;
-    let requestAllowRecording: () => Promise<void>;
+    let requestAllowRecording: (options?: {
+        signal?: AbortSignal;
+    }) => Promise<void>;
 
     const streams: { local?: MediaStream; screen?: MediaStream } = {};
     const enabledMedia = { video: false, audio: false, screen: false };
@@ -99,7 +101,9 @@
                         streams.local =
                             await window.navigator.mediaDevices.getUserMedia({
                                 video: enabledMedia.video,
-                                audio: enabledMedia.audio,
+                                audio: enabledMedia.audio && {
+                                    echoCancellation: true,
+                                },
                             });
                     } catch (error) {
                         console.error("Unable to get user media:", error);
@@ -208,9 +212,11 @@
                 addStream(id, stream) {
                     peers[id] ??= new Set();
                     peers[id].add(stream);
+                    peers = peers;
                 },
                 removeStream(id, stream) {
                     peers[id]?.delete(stream);
+                    peers = peers;
                 },
                 removePeer(id) {
                     delete peers[id];
@@ -250,13 +256,19 @@
             }
         );
 
+        let allowRecordingAc: AbortController | undefined;
+
         socket.on("recording", async ({ action }) => {
             if (action === "start") {
                 if (!$allowRecording) {
-                    await requestAllowRecording();
+                    await requestAllowRecording({
+                        signal: allowRecordingAc?.signal,
+                    });
                 }
                 recordingHandler.start(true);
             } else {
+                allowRecordingAc?.abort();
+                allowRecordingAc = undefined;
                 recordingHandler.stop(false);
             }
         });
@@ -265,7 +277,9 @@
             $allowRecording = true;
             recordingHandler.start(true);
         };
-        handlers.stopRecording = () => recordingHandler.stop(true);
+        handlers.stopRecording = () => {
+            recordingHandler.stop(true);
+        };
         handlers.cleanup = tap(handlers.cleanup, () =>
             recordingHandler.stop(data.isOwner)
         );

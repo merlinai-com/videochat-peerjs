@@ -7,18 +7,44 @@
     }>();
 
     export const show = () => dialog.showModal();
-    export const request = () =>
+    export const request = (options?: { signal?: AbortSignal }) =>
         new Promise<void>((resolve, reject) => {
-            handlers.push({ resolve, reject });
+            const signal = options?.signal;
+            if (signal?.aborted) reject(signal.reason);
+
+            if (signal) {
+                const handler = {
+                    resolve: () => {
+                        signal.removeEventListener("abort", handler.onAbort);
+                        resolve();
+                    },
+                    reject: (error: any) => {
+                        signal.removeEventListener("abort", handler.onAbort);
+                        reject(error);
+                    },
+                    onAbort: () => {
+                        handlers.delete(handler);
+                        handler.reject({ error: signal.reason });
+                    },
+                };
+                signal.addEventListener("abort", handler.onAbort);
+                handlers.add(handler);
+            } else {
+                handlers.add({ resolve, reject });
+            }
+
             dialog.showModal();
         });
 
-    let handlers: { resolve: () => void; reject: (error?: any) => void }[] = [];
+    let handlers = new Set<{
+        resolve: () => void;
+        reject: (error?: any) => void;
+    }>();
     let remember = false;
 
     function invokeAll(type: "resolve" | "reject") {
         const copy = handlers;
-        handlers = [];
+        handlers = new Set();
 
         const error =
             type === "reject" ? new Error("Recording denied") : undefined;

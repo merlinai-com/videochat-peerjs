@@ -1,9 +1,11 @@
+import * as mime from "mime-types";
 import { Namespace } from "socket.io";
 import { SSO } from "sso";
 import { injectErrorHandler, UserError } from "./errorHandler.js";
 import {
     Database,
     RecordingId,
+    UserId,
     type JsonSafe,
     type RoomId,
 } from "./lib/database.js";
@@ -18,7 +20,35 @@ import {
     type SignalId,
 } from "./lib/types.js";
 import { omit } from "./lib/utils.js";
+import { sendMessage } from "./message.js";
 import { Publisher, type Listeners, type Subscriber } from "./publisher.js";
+
+async function finishAndSendRecording(
+    pub: Publisher<PublisherEvents>,
+    db: Database,
+    id: RecordingId
+): Promise<void> {
+    await db.finishRecording(id);
+    const recording = await db.select(id);
+    const attachment = await db.createAttachment(
+        recording.file_id,
+        `Recording.${mime.extension(recording.mimeType)}`,
+        recording.mimeType,
+        recording.group
+    );
+    await sendMessage(db, pub, recording.user, recording.group, "", [
+        attachment,
+    ]);
+}
+
+async function assertIsRecordingOwner(
+    db: Database,
+    user: UserId,
+    recording: RecordingId
+): Promise<void> {
+    if (!db.isRecordingOwner(user, recording))
+        throw new UserError("Not recording owner");
+}
 
 export function initRoomNamespace(
     ns: Namespace<
@@ -147,11 +177,13 @@ export function initRoomNamespace(
             if (socket.data.user) {
                 for (const id of recordings) {
                     recordings.delete(id);
-                    await db.finishRecording(
-                        socket.data.user.id,
+                    await finishAndSendRecording(
+                        pub,
+                        db,
                         Database.parseRecord("recording", id)
                     );
                 }
+                if (socket.data.roomId) await updateRoom("recordings");
             }
         });
 
@@ -215,10 +247,20 @@ export function initRoomNamespace(
             });
         });
 
+        /* =======
+        Recordings
+        ======= */
+
+        const seenChunks: Record<
+            JsonSafe<RecordingId>,
+            { nextIndex: number }
+        > = {};
+
         socket.on("upload_start", async ({ mimeType, is_screen }, callback) => {
             if (!socket.data.user) return callback({ error: "Not logged in" });
             if (!socket.data.roomId)
                 return callback({ error: "join_room has not been called" });
+
             const id = await db.createRecording({
                 user: socket.data.user.id,
                 mimeType,
@@ -226,6 +268,7 @@ export function initRoomNamespace(
                 is_screen,
             });
             recordings.add(Database.jsonSafe(id));
+            seenChunks[Database.jsonSafe(id)] = { nextIndex: 0 };
             callback({ id: Database.jsonSafe(id) });
             pub.publish(
                 "upload",
@@ -237,20 +280,48 @@ export function initRoomNamespace(
             await updateRoom("recordings");
         });
 
-        socket.on("upload_chunk", (id, data) => {
+        socket.on("upload_chunk", async (id, data, index) => {
             if (!socket.data.user) throw new UserError("Not logged in");
+
+            seenChunks[id] ??= { nextIndex: index };
+            if (seenChunks[id].nextIndex > index) {
+                // We have already got this chunk, so ignore it
+                return;
+            } else if (seenChunks[id].nextIndex < index) {
+                // We have missed some chunks
+                socket.emit(
+                    "request_upload_chunk",
+                    id,
+                    seenChunks[id].nextIndex,
+                    index
+                );
+                return;
+            }
+
+            seenChunks[id].nextIndex += 1;
+
+            await assertIsRecordingOwner(
+                db,
+                socket.data.user.id,
+                Database.parseRecord("recording", id)
+            );
 
             pub.publish(
                 "upload",
                 "chunk",
                 Database.jsonSafe(socket.data.user.id),
                 id,
-                data as Buffer
+                data
             );
         });
 
         socket.on("upload_stop", async (id) => {
             if (!socket.data.user) throw new UserError("Not logged in");
+            await assertIsRecordingOwner(
+                db,
+                socket.data.user.id,
+                Database.parseRecord("recording", id)
+            );
 
             pub.publish(
                 "upload",
@@ -259,11 +330,12 @@ export function initRoomNamespace(
                 id
             );
             recordings.delete(id);
-            await db.finishRecording(
-                socket.data.user.id,
+
+            await finishAndSendRecording(
+                pub,
+                db,
                 Database.parseRecord("recording", id)
             );
-            await updateRoom("recordings");
         });
     });
 }

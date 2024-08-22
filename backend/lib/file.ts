@@ -22,12 +22,19 @@ export class FileStore {
         return path.join(this.uploadDir, id);
     }
 
-    private async openFile(id: UUID): Promise<fs.FileHandle> {
+    private async openFile(
+        id: UUID,
+        flags: "a+" | "r"
+    ): Promise<fs.FileHandle> {
         let handle;
         try {
-            handle = await fs.open(this.filePath(id), "a+");
+            handle = await fs.open(this.filePath(id), flags);
         } catch (error) {
-            if (error instanceof Error && error.message.includes("ENOENT")) {
+            if (
+                error instanceof Error &&
+                error.message.includes("ENOENT") &&
+                flags === "a+"
+            ) {
                 await fs.mkdir(this.uploadDir);
                 handle = await fs.open(this.filePath(id));
             } else {
@@ -39,7 +46,7 @@ export class FileStore {
     }
 
     async appendChunk(id: UUID, data: Uint8Array): Promise<void> {
-        const handle = await this.openFile(id);
+        const handle = await this.openFile(id, "a+");
         await handle.writeFile(data);
         await handle.close();
     }
@@ -48,27 +55,33 @@ export class FileStore {
         id: UUID,
         stream: ReadableStream<Uint8Array>
     ): Promise<void> {
-        const handle = await this.openFile(id);
+        const handle = await this.openFile(id, "a+");
         const write = handle.createWriteStream();
         await stream.pipeTo(Writable.toWeb(write));
     }
 
-    async readableStream(id: UUID): Promise<ReadableStream> {
-        const handle = await this.openFile(id);
+    async readableStream(
+        id: UUID
+    ): Promise<{ stream: ReadableStream; length: number }> {
+        const handle = await this.openFile(id, "r");
+        const stat = await handle.stat();
         const stream = handle.readableWebStream({
             type: "bytes",
         }) as ReadableStream;
-        return stream.pipeThrough(
-            trackingStream({
-                async done() {
-                    await handle.close();
-                },
-            })
-        );
+        return {
+            stream: stream.pipeThrough(
+                trackingStream({
+                    async done() {
+                        await handle.close();
+                    },
+                })
+            ),
+            length: stat.size,
+        };
     }
 
     async readableNodeStream(id: UUID): Promise<NodeJS.ReadableStream> {
-        const handle = await this.openFile(id);
+        const handle = await this.openFile(id, "r");
         return handle.createReadStream();
     }
 }
