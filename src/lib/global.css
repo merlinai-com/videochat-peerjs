@@ -134,6 +134,12 @@
     overflow-wrap: break-word;
 }
 
+@media screen and not (prefers-reduced-motion) {
+    .scroll-behavior {
+        scroll-behavior: smooth;
+    }
+}
+
 /* Reset */
 
 button,

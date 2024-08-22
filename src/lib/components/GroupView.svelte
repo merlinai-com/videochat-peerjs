@@ -36,7 +36,7 @@
     let users = createUserNamesStore();
 
     let messageScroll: HTMLElement;
-    let scrollToBottom = false;
+    let scrollToBottom = false as false | "instant" | "auto";
 
     $: title =
         selectedGroup &&
@@ -44,7 +44,7 @@
     // : getOtherUser(selectedGroup.users, data.user?.email).email);
 
     let messages: JsonSafe<Message<Attachment>>[] = [];
-    let messageIds = new Set<JsonSafe<MessageId>>();
+    const messageIds = new Set<JsonSafe<MessageId>>();
 
     /** The message that's currently being edited*/
     let message = {
@@ -98,6 +98,7 @@
     $: socket && selectedGroup && subscribe(socket, selectedGroup);
     function subscribe(socket: MessageSocket, selectedGroup: JsonSafe<Group>) {
         messages = [];
+        messageIds.clear();
         socket.emit("subscribe", selectedGroup.id);
     }
 
@@ -123,14 +124,15 @@
         for (const m of ms) messageIds.add(m.id);
         if (ms.length > 0) {
             // New messages
-            messages = mergeBy(messages, ms, "sent_time");
 
             if (
                 messageScroll.scrollTop >=
-                messageScroll.scrollHeight - messageScroll.clientHeight - 1e-3
+                messageScroll.scrollHeight - messageScroll.clientHeight - 5
             ) {
-                scrollToBottom = true;
+                scrollToBottom = messages.length === 0 ? "instant" : "auto";
             }
+
+            messages = mergeBy(messages, ms, "sent_time");
         }
     }
 
@@ -158,7 +160,9 @@
 
     afterUpdate(() => {
         if (scrollToBottom) {
-            messageScroll.scrollTop = messageScroll.scrollHeight;
+            messageScroll.lastElementChild?.scrollIntoView({
+                behavior: scrollToBottom,
+            });
             scrollToBottom = false;
         }
     });
@@ -218,7 +222,7 @@
         {/if}
 
         <ul
-            class="flex-col overflow-y-auto overflow-x-hidden min-h-0 min-w-0"
+            class="flex-col overflow-y-auto overflow-x-hidden min-h-0 min-w-0 scroll-behavior"
             bind:this={messageScroll}
         >
             {#each groupBy( messages, (m) => format(m.sent_time, "d MMMM yyyy") ) as { key, values }}
