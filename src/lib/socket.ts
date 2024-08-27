@@ -1,7 +1,7 @@
 import { debug, type DebugTopic } from "$lib";
 import type { EventsMap } from "@socket.io/component-emitter";
 import type { MessageSocket, RoomSocket } from "backend/lib/types";
-import { io, Manager, type Socket } from "socket.io-client";
+import { Manager, type Socket } from "socket.io-client";
 import msgpackParser from "socket.io-msgpack-parser";
 
 function initLogging(socket: Socket, topic: DebugTopic) {
