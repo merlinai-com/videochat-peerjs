@@ -39,6 +39,12 @@ async function createZipFile(
 
     for (const { value: recording, index } of enumerate(room.recordings)) {
         const file = await fileStore.readableNodeStream(recording.file_id);
+        if (!file) {
+            console.warn(
+                `File not found for recording ${recording.id} - missing file id: ${recording.file_id}`
+            );
+            continue;
+        }
         zip.file(getZipPath(recording, nameCache, index), file);
     }
 

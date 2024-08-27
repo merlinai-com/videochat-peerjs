@@ -33,11 +33,26 @@ export class FileStore {
         return path.join(this.uploadDir, id);
     }
 
+    private async openFile(id: UUID, flags: "a+"): Promise<fs.FileHandle>;
+    private async openFile(
+        id: UUID,
+        flags: "r"
+    ): Promise<fs.FileHandle | undefined>;
     private async openFile(
         id: UUID,
         flags: "a+" | "r"
-    ): Promise<fs.FileHandle> {
-        return await fs.open(this.filePath(id), flags);
+    ): Promise<fs.FileHandle | undefined> {
+        try {
+            return await fs.open(this.filePath(id), flags);
+        } catch (error) {
+            if (
+                error instanceof Error &&
+                error.message.includes("ENOENT") &&
+                flags == "r"
+            )
+                return undefined;
+            else throw error;
+        }
     }
 
     async appendChunk(id: UUID, data: Uint8Array): Promise<void> {
@@ -57,8 +72,10 @@ export class FileStore {
 
     async readableStream(
         id: UUID
-    ): Promise<{ stream: ReadableStream; length: number }> {
+    ): Promise<{ stream?: ReadableStream; length?: number }> {
         const handle = await this.openFile(id, "r");
+        if (!handle) return {};
+
         const stat = await handle.stat();
         const stream = handle.readableWebStream({
             type: "bytes",
@@ -75,9 +92,11 @@ export class FileStore {
         };
     }
 
-    async readableNodeStream(id: UUID): Promise<NodeJS.ReadableStream> {
+    async readableNodeStream(
+        id: UUID
+    ): Promise<NodeJS.ReadableStream | undefined> {
         const handle = await this.openFile(id, "r");
-        return handle.createReadStream();
+        return handle?.createReadStream();
     }
 }
 
