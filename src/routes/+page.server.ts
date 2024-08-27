@@ -1,5 +1,4 @@
-import { dev } from "$app/environment";
-import { database, getUser } from "$lib/server";
+import { database } from "$lib/server";
 import { sso } from "$lib/server/sso";
 import { error, redirect } from "@sveltejs/kit";
 import { Database } from "backend/lib/database";
@@ -31,12 +30,8 @@ export const actions: Actions = {
 
         event.locals.setAcceptCookies(true);
 
-        if (allow_recording || name) {
-            const user = await getUser(database, {
-                ssoUser: event.locals.ssoUser,
-                cookies: event.cookies,
-                create: true,
-            });
+        if ((allow_recording || name) && event.locals.ssoUser) {
+            const user = await database.getUser(event.locals.ssoUser.id, true);
             await database.merge(user.id, { allow_recording, name });
         }
 
@@ -46,12 +41,9 @@ export const actions: Actions = {
 
     /** Create a group  */
     call_group: async ({ request, locals }) => {
-        const user = await getUser(database, {
-            ssoUser: locals.ssoUser,
-            create: true,
-            secure: !dev,
-        });
-        if (!user) throw error(401, "You must be logged in to create a group");
+        if (!locals.ssoUser)
+            throw error(401, "You must be logged in to start a call");
+        const user = await database.getUser(locals.ssoUser.id, true);
 
         const data = await request.formData();
         const group = data.get("group");
@@ -72,12 +64,9 @@ export const actions: Actions = {
     },
 
     create_group: async ({ request, locals }) => {
-        const user = await getUser(database, {
-            ssoUser: locals.ssoUser,
-            create: true,
-            secure: !dev,
-        });
-        if (!user) throw error(401, "You must be logged in to create a group");
+        if (!locals.ssoUser)
+            throw error(401, "You must be logged in to create a group");
+        const user = await database.getUser(locals.ssoUser.id, true);
 
         const data = await request.formData();
         const name = data.get("name");
@@ -93,24 +82,21 @@ export const actions: Actions = {
     },
 
     create_p2p_group: async ({ request, locals }) => {
-        const user1 = await getUser(database, {
-            ssoUser: locals.ssoUser,
-            create: true,
-            secure: !dev,
-        });
-        if (!user1) throw error(401, "You must be logged in to create a group");
+        if (!locals.ssoUser)
+            throw error(401, "You must be logged in to create a group");
+        const user1 = await database.getUser(locals.ssoUser.id, true);
 
         const data = await request.formData();
         const email = data.get("email");
         if (typeof email !== "string" || !isEmail(email))
             throw error(422, "`email` must be an email");
 
-        // TODO
+        // TODO: no SSO user exists yet
         const users = await sso.getUsers({ emails: [email] });
         const ssoUser = users.find((u) => u.email === email);
         if (!ssoUser) return { action: "create_p2p_group" as const };
 
-        const user2 = await database.getSsoUser(ssoUser.id, false);
+        const user2 = await database.getUser(ssoUser.id, false);
         if (!user2) throw error(404, "User not found");
 
         const id = await database.getOrCreateP2PGroup(user1.id, user2.id);
@@ -120,12 +106,12 @@ export const actions: Actions = {
         };
     },
 
-    set_name: async ({ request, locals, cookies }) => {
-        const user = await getUser(database, {
-            ssoUser: locals.ssoUser,
-            cookies: cookies,
-            create: true,
-        });
+    set_name: async ({ request, locals }) => {
+        if (!locals.ssoUser)
+            throw error(401, "You must be logged in to change your nickname");
+
+        const user = await database.getUser(locals.ssoUser.id, true);
+
         const data = await request.formData();
         const name = data.get("name");
         if (typeof name !== "string")
@@ -134,10 +120,9 @@ export const actions: Actions = {
     },
 
     clear_name: async ({ locals, cookies }) => {
-        const user = await getUser(database, {
-            ssoUser: locals.ssoUser,
-            create: false,
-        });
+        if (!locals.ssoUser)
+            throw error(401, "You must be logged in to clear your nickname");
+        const user = await database.getUser(locals.ssoUser.id, false);
         if (user) await database.setUserName(user.id, undefined);
     },
 };

@@ -6,7 +6,16 @@
 
     export let data: App.PageData;
     export let name: "permit" | "require" | undefined = undefined;
-    export let acceptCookies: Promise<void>;
+    export const acceptCookies = new Promise<void>((resolve, reject) => {
+        if (data.acceptCookies) resolve();
+        else
+            onMount(() => {
+                handlers = { resolve, reject };
+                dialog.showModal();
+                url = new URL($page.url);
+                url.searchParams.set("acceptCookies", "");
+            });
+    });
 
     let dialog: HTMLDialogElement;
     let url: URL;
@@ -17,19 +26,6 @@
         resolve: () => void;
         reject: (error: any) => void;
     };
-
-    if (data.acceptCookies) {
-        acceptCookies = Promise.resolve();
-    } else {
-        onMount(() => {
-            acceptCookies = new Promise((resolve, reject) => {
-                handlers = { resolve, reject };
-                dialog.showModal();
-                url = new URL($page.url);
-                url.searchParams.set("acceptCookies", "");
-            });
-        });
-    }
 </script>
 
 <dialog bind:this={dialog}>

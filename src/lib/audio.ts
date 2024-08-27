@@ -39,13 +39,12 @@ export class AudioEngine<T extends string | symbol> {
         }
     }
 
-    /** Play a track by adding an `<audio>` element to `document.body` */
+    /** Play a track, resolves once the track has finished playing */
     async play(track: T): Promise<void> {
         const opts = read(optionsStore);
         if (!opts.playSoundOnMessage) return;
 
         const audio = this.elements[track];
-        console.log("play", audio);
         await audio.play();
 
         return new Promise(async (resolve, reject) => {

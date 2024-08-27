@@ -2,11 +2,11 @@ import { Namespace } from "socket.io";
 import { SSO } from "sso";
 import { injectErrorHandler } from "./errorHandler.js";
 import {
-    AttachmentId,
     Database,
-    UserId,
+    type AttachmentId,
     type GroupId,
     type JsonSafe,
+    type UserId,
 } from "./lib/database.js";
 import { getUserNames } from "./lib/login.js";
 import type {

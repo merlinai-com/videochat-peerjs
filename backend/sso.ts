@@ -2,7 +2,6 @@ import type { EventsMap } from "@socket.io/component-emitter";
 import { Socket } from "socket.io";
 import { type Cookies, SSO, type User } from "sso";
 import { Database, type User as DbUser } from "./lib/database.js";
-import { getUser } from "./lib/login.js";
 
 function mkCookies(socket: Socket): Cookies {
     if (!("cookies" in socket.request))
@@ -36,10 +35,9 @@ export function loginMiddleware(sso: SSO, db: Database) {
         const { user } = res.value;
         socket.data.ssoUser = user ?? undefined;
 
-        socket.data.user = await getUser(db, {
-            ssoUser: socket.data.ssoUser,
-            cookies,
-        });
+        if (socket.data.ssoUser) {
+            socket.data.user = await db.getUser(socket.data.ssoUser.id, false);
+        }
 
         next();
     };

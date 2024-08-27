@@ -259,17 +259,10 @@ export class Database extends Emitter<{ user: [Action, User] }> {
         return await this.run("fn::exists", id);
     }
 
-    async createUser(): Promise<User> {
-        return await this.run("fn::createUser");
-    }
-
     /** Get or create a user with an SSO id */
-    async getSsoUser(sso_id: string, create: true): Promise<User>;
-    async getSsoUser(
-        sso_id: string,
-        create?: boolean
-    ): Promise<User | undefined>;
-    async getSsoUser(
+    async getUser(sso_id: string, create: true): Promise<User>;
+    async getUser(sso_id: string, create?: boolean): Promise<User | undefined>;
+    async getUser(
         sso_id: string,
         create: boolean = false
     ): Promise<User | undefined> {

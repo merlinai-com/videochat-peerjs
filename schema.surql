@@ -1,6 +1,6 @@
 DEFINE TABLE user SCHEMAFULL TYPE NORMAL;
 -- The SSO ID of this user
-DEFINE FIELD sso_id ON user TYPE option<string>;
+DEFINE FIELD sso_id ON user TYPE string;
 -- The user's nickname. This should be set if sso_id is NONE
 DEFINE FIELD name ON user TYPE option<string>;
 -- Set to true if the user always allows recordings, false if the user should be asked each time
@@ -92,11 +92,6 @@ DEFINE FUNCTION fn::fetchAll($ids: array<record>) {
 -- Check if a record exists
 DEFINE FUNCTION fn::exists($id: record) {
     RETURN $id.id == $id;
-};
-
--- Create a new user without an SSO id
-DEFINE FUNCTION fn::createUser() {
-    RETURN (CREATE ONLY user:uuid());
 };
 
 -- Get the user from an sso_id, optionally creating a new user if none exists

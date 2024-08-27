@@ -4,7 +4,8 @@
 
 <script lang="ts">
     import { enhance } from "$app/forms";
-    import { fetchJson } from "$lib";
+    import { fetchJson, stayAtBottom } from "$lib";
+    import { AudioEngine } from "$lib/audio";
     import { ensureEmit, message as messageSocket } from "$lib/socket";
     import { createUserNamesStore } from "$lib/stores";
     import type {
@@ -20,9 +21,8 @@
     import type { MessageSocket } from "backend/lib/types";
     import { groupBy, mergeBy, selectNonNull } from "backend/lib/utils";
     import { format } from "date-fns/format";
-    import { afterUpdate, onMount } from "svelte";
+    import { onMount } from "svelte";
     import MessageView from "./MessageView.svelte";
-    import { AudioEngine } from "$lib/audio";
 
     /** The current user's ID */
     export let user: JsonSafe<User> | undefined;
@@ -31,12 +31,9 @@
     /** Include controls for the group (ie invite link, call button) */
     export let controls = false;
 
-    let socket: MessageSocket;
+    let socket: MessageSocket | undefined;
     let audio: AudioEngine<"message">;
     let users = createUserNamesStore();
-
-    let messageScroll: HTMLElement;
-    let scrollToBottom = false;
 
     $: title =
         selectedGroup &&
@@ -112,28 +109,18 @@
             attachments.push(await getAttachmentId(attachment, message.group));
         }
 
-        await ensureEmit(socket, {}, "send", {
-            ...message,
-            msgId: crypto.randomUUID(),
-            attachments,
-        });
+        if (socket)
+            await ensureEmit(socket, {}, "send", {
+                ...message,
+                msgId: crypto.randomUUID(),
+                attachments,
+            });
     }
 
     function addMessages(ms: JsonSafe<Message<Attachment>>[]) {
         ms = ms.filter((m) => !messageIds.has(m.id));
         for (const m of ms) messageIds.add(m.id);
-        if (ms.length > 0) {
-            // New messages
-
-            if (
-                messageScroll.scrollTop >=
-                messageScroll.scrollHeight - messageScroll.clientHeight - 5
-            ) {
-                scrollToBottom = true;
-            }
-
-            messages = mergeBy(messages, ms, "sent_time");
-        }
+        if (ms.length > 0) messages = mergeBy(messages, ms, "sent_time");
     }
 
     onMount(() => {
@@ -155,14 +142,10 @@
 
         audio = new AudioEngine({ message: "/sounds/message.m4a" });
 
-        return () => socket.close();
-    });
-
-    afterUpdate(() => {
-        if (scrollToBottom) {
-            messageScroll.scrollTop = messageScroll.scrollHeight;
-            scrollToBottom = false;
-        }
+        return () => {
+            socket?.close();
+            socket = undefined;
+        };
     });
 
     function dropHandler(event: DragEvent) {
@@ -223,7 +206,7 @@
 
         <ul
             class="flex-col overflow-y-auto overflow-x-hidden min-h-0 min-w-0 scroll-behavior"
-            bind:this={messageScroll}
+            use:stayAtBottom
         >
             {#each groupBy( messages, (m) => format(m.sent_time, "d MMMM yyyy") ) as { key, values }}
                 <span class="align-self-center text-translucent">
@@ -282,8 +265,7 @@
             </div>
 
             <div>
-                <!-- svelte-ignore a11y-no-noninteractive-element-to-interactive-role -->
-                <label class="button" role="button" aria-disabled={!user?.name}>
+                <label class="button" aria-disabled={!user}>
                     Add attachment
                     <input
                         type="file"
@@ -299,10 +281,8 @@
                 <input
                     placeholder="Message"
                     required={message.attachments.length === 0}
-                    disabled={!user?.name}
-                    title={!user?.name
-                        ? "Enter your name to send a message"
-                        : undefined}
+                    disabled={!user}
+                    title={!user ? "Log in to send a message" : undefined}
                     bind:value={message.content}
                     on:paste={pasteHandler}
                 />

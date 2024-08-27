@@ -3,10 +3,7 @@ import { Database } from "backend/lib/database";
 import type { LayoutServerLoad } from "./$types";
 
 export const load: LayoutServerLoad = async ({ locals, url }) => {
-    const user = locals.user && { ...locals.user };
-    if (locals.ssoUser && user) user.name = locals.ssoUser.name;
-
-    return {
+    return Database.jsonSafe({
         authURLs: {
             login: sso.loginURL(url).href,
             // login:
@@ -15,7 +12,7 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
             logout: sso.logoutURL(url).href,
         },
         ssoUser: locals.ssoUser,
-        user: Database.jsonSafe(user),
+        user: locals.user,
         acceptCookies: locals.acceptCookies,
-    };
+    });
 };

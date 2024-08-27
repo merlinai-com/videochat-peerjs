@@ -1,4 +1,6 @@
 <script lang="ts">
+    import AllowRecordingDialog from "$lib/components/AllowRecordingDialog.svelte";
+    import CookieNotice from "$lib/components/CookieNotice.svelte";
     import GroupView from "$lib/components/GroupView.svelte";
     import Login from "$lib/components/Login.svelte";
     import VideoGrid from "$lib/components/VideoGrid.svelte";
@@ -16,10 +18,8 @@
     import { formatTime } from "backend/lib/utils";
     import { format } from "date-fns/format";
     import { onMount } from "svelte";
-    import type { PageData } from "./$types";
     import type { Writable } from "svelte/store";
-    import AllowRecordingDialog from "$lib/components/AllowRecordingDialog.svelte";
-    import CookieNotice from "$lib/components/CookieNotice.svelte";
+    import type { PageData } from "./$types";
 
     const now = createTimeStore(() => new Date(), {
         interval: 100,
@@ -376,7 +376,7 @@
             }
         });
 
-        socket.emit("join_room", data.roomId);
+        socket.emit("join_room", data.room.id);
     });
 </script>
 
@@ -479,7 +479,7 @@
     </div>
 
     <div class={showMessages ? "flex-col min-h-0 justify-end" : "hidden"}>
-        <GroupView user={data.user} selectedGroup={data.group} />
+        <GroupView user={data.user} selectedGroup={data.room.group} />
     </div>
 
     {#if data.isOwner}
@@ -500,7 +500,7 @@
             {#if recordings.length > 0 && !state.recording}
                 <a
                     class="button"
-                    href="/api/room/{data.roomId.replace(
+                    href="/api/room/{data.room.id.replace(
                         'room:',
                         ''
                     )}/recording"

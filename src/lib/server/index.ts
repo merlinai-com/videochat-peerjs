@@ -5,8 +5,6 @@ import { getSize } from "backend/lib/utils";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
-export { getUser } from "backend/lib/login";
-
 export const database = await Database.init(env, building);
 
 export const compressionLevel = 6;

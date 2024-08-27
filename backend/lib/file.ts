@@ -1,7 +1,12 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { Writable } from "node:stream";
-import { Database, JsonSafe, Recording, UserId } from "./database.js";
+import {
+    Database,
+    type JsonSafe,
+    type Recording,
+    type UserId,
+} from "./database.js";
 import type { UUID } from "./types.js";
 import {
     formatPathDate,

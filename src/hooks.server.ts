@@ -1,5 +1,4 @@
-import { dev } from "$app/environment";
-import { attachmentLimits, database, getUser } from "$lib/server";
+import { attachmentLimits, database } from "$lib/server";
 import { makeCookies, sso, handle as ssoHandle } from "$lib/server/sso";
 import { error, type Handle } from "@sveltejs/kit";
 import { sequence } from "@sveltejs/kit/hooks";
@@ -17,15 +16,10 @@ const handleSSO: Handle = async ({ event, resolve }) => {
     return resolve(event);
 };
 
-/** Handle Zap accounts - which might be linked to an SSO account */
 const handleUser: Handle = async ({ event, resolve }) => {
-    const userId = await getUser(database, {
-        ssoUser: event.locals.ssoUser,
-        cookies: event.cookies,
-        secure: !dev,
-    });
-
-    event.locals.user = userId;
+    if (event.locals.ssoUser) {
+        event.locals.user = await database.getUser(event.locals.ssoUser.id);
+    }
 
     return resolve(event);
 };

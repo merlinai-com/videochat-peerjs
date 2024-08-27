@@ -1,4 +1,5 @@
 import { browser } from "$app/environment";
+import type { Action } from "svelte/action";
 
 export async function fetchJson<T>(
     url: string | URL,
@@ -58,3 +59,56 @@ declare global {
 }
 
 if (browser) window.Zap ??= { debug: {} };
+
+function isAtBottom(element: HTMLElement): boolean {
+    return element.scrollTop >= element.scrollHeight - element.clientHeight - 5;
+}
+
+export const stayAtBottom: Action<
+    HTMLElement,
+    { behaviour?: "instant" | "smooth" | "auto" } | undefined
+> = (element, options) => {
+    let scroll = isAtBottom(element);
+    let behavior = options?.behaviour ?? "instant";
+
+    const onResize = () => {
+        if (scroll) {
+            element.scrollTo({
+                top: element.scrollHeight,
+                behavior,
+            });
+        }
+    };
+
+    const childObserver = new ResizeObserver(onResize);
+    for (const child of element.children) childObserver.observe(child);
+
+    const parentObserver = new MutationObserver((updates) => {
+        for (const { addedNodes, removedNodes, type } of updates) {
+            if (type !== "childList") continue;
+            for (const added of addedNodes) {
+                if (added instanceof HTMLElement) childObserver.observe(added);
+            }
+            for (const added of removedNodes) {
+                if (added instanceof HTMLElement)
+                    childObserver.unobserve(added);
+            }
+        }
+        onResize();
+    });
+    parentObserver.observe(element, { childList: true });
+
+    const onScroll = () => (scroll = isAtBottom(element));
+    element.addEventListener("scroll", onScroll);
+
+    return {
+        update(parameter) {
+            behavior = parameter?.behaviour ?? "instant";
+        },
+        destroy() {
+            parentObserver.disconnect();
+            childObserver.disconnect();
+            element.removeEventListener("scroll", onScroll);
+        },
+    };
+};
