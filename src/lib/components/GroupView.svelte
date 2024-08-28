@@ -33,7 +33,7 @@
 
     let socket: MessageSocket | undefined;
     let audio: AudioEngine<"message">;
-    let users = createUserNamesStore();
+    let users = createUserNamesStore(user?.id);
 
     $: title =
         selectedGroup &&
@@ -138,7 +138,7 @@
             users.request(messages.map((m) => m.in));
         });
 
-        users = createUserNamesStore(socket);
+        users = createUserNamesStore(user?.id, socket);
 
         audio = new AudioEngine({ message: "/sounds/message.m4a" });
 

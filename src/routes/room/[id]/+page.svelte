@@ -70,7 +70,7 @@
     $: videos = [
         ...Object.values(peers).flatMap(({ user, streams }) =>
             [...streams].map((stream) => ({
-                name: user && ($userNameStore[user] ?? user),
+                name: user ? $userNameStore[user] ?? user : "Unknown user",
                 stream,
             }))
         ),
@@ -85,7 +85,7 @@
     /** The list of recordings */
     let recordings: JsonSafe<Omit<Recording, "file_id">>[] = [];
 
-    let userNameStore = createUserNamesStore();
+    let userNameStore = createUserNamesStore(data.user?.id);
 
     const tap = (f1: () => void, f2: () => void) => () => {
         f1();
@@ -248,7 +248,12 @@
                 selectedStream;
         });
 
-        socket.on("users", (us) => (users = us));
+        socket.on("users", (us) => {
+            if (data.user && !us.some(({ id }) => id === data.user?.id)) {
+            }
+            users = us;
+            userNameStore.setNames(us);
+        });
         socket.on("recordings", (rs) => {
             recordings = rs;
             userNameStore.request(recordings.map((r) => r.user));
@@ -358,7 +363,7 @@
 
         const socket = room();
 
-        userNameStore = createUserNamesStore(message());
+        userNameStore = createUserNamesStore(data.user?.id, message());
         allowRecording = createStore(sessionStorage, {
             init: data.user?.allow_recording ?? false,
             version: 1,
@@ -379,6 +384,7 @@
         socket.on("connect", () => {
             socket.emit("join_room", data.room.id);
         });
+        socket.emit("join_room", data.room.id);
     });
 </script>
 

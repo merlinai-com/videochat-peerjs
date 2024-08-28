@@ -125,16 +125,21 @@ export function createTimeStore<T>(
 export interface UserNameStore
     extends Writable<Record<JsonSafe<UserId>, string | undefined>> {
     request: (users: JsonSafe<UserId>[]) => void;
+    setNames: (users: JsonSafe<{ id: UserId; name?: string }>[]) => void;
 }
 
-/** Global map from user IDs to names */
-const map: Record<JsonSafe<UserId>, string | undefined> = {};
+export function createUserNamesStore(
+    me?: JsonSafe<UserId>,
+    socket?: MessageSocket
+): UserNameStore {
+    /** map from user IDs to names */
+    const map: Record<JsonSafe<UserId>, string | undefined> = {};
 
-/** Unknown users */
-const unknown = new Set<JsonSafe<UserId>>();
+    /** Unknown users */
+    const unknown = new Set<JsonSafe<UserId>>();
 
-export function createUserNamesStore(socket?: MessageSocket): UserNameStore {
     /** a map from user IDs to names */
+    if (me) map[me] = "Me";
 
     const store = writable(map);
 
@@ -156,9 +161,15 @@ export function createUserNamesStore(socket?: MessageSocket): UserNameStore {
     return {
         ...store,
         request(ids) {
-            ids = ids.filter((id) => map[id] == undefined);
+            ids = ids.filter((id) => id !== me && map[id] == undefined);
             ids.forEach((id) => unknown.add(id));
             if (ids.length > 0) socket?.emit("request_users", uniq(ids));
+        },
+        setNames(users) {
+            for (const user of users) {
+                map[user.id] = user.name;
+            }
+            if (users.length > 0) store.set(map);
         },
     };
 }

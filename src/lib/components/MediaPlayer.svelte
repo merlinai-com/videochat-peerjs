@@ -33,7 +33,6 @@
         {muted}
     >
     </video>
-    {muted}
 {:else}
     <div class={class_}>
         <div class="w-full h-full flex-col justify-center align-center">

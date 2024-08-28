@@ -124,7 +124,6 @@ export function createRtcHandler(
                 }
             });
             track.addEventListener("ended", () => {
-                console.log(`${track.kind} track ended`);
                 for (const stream of streams) {
                     if (!stream.active) callbacks.removeStream(id, stream);
                 }

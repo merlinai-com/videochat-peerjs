@@ -47,7 +47,7 @@ export interface RoomServerToClientEvents
 
     /** A user connected, and each client should connect */
     connect_to: (
-        arg: JsonSafe<{ id: SignalId; user?: UserId; polite: boolean }>
+        arg: JsonSafe<{ id: SignalId; user: UserId; polite: boolean }>
     ) => void;
 
     /** A user disconnected */
@@ -189,7 +189,7 @@ export type UserEvents = RoomServerToClientEvents;
 
 export interface RoomEvents {
     /** A user has connected to the call */
-    connected: (id: SignalId, user?: JsonSafe<UserId>) => void;
+    connected: (id: SignalId, user: JsonSafe<UserId>) => void;
     /** A user has disconnected from the call */
     disconnected: (id: SignalId) => void;
     /** The list of users in the room has been updated */

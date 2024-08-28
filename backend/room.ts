@@ -129,11 +129,15 @@ export function initRoomNamespace(
             },
             connected(peerId, user) {
                 if (connected && signalId !== peerId) {
-                    socket.emit("connect_to", { id: peerId, polite: true });
+                    socket.emit("connect_to", {
+                        id: peerId,
+                        user,
+                        polite: true,
+                    });
                     pub.publish(peerId, "connect_to", {
                         id: signalId,
                         polite: false,
-                        user,
+                        user: Database.jsonSafe(socket.data.user!.id),
                     });
                 }
             },
@@ -234,7 +238,7 @@ export function initRoomNamespace(
             roomSub?.publish(
                 "connected",
                 signalId,
-                socket.data.user && Database.jsonSafe(socket.data.user.id)
+                Database.jsonSafe(socket.data.user!.id)
             );
             connected = true;
         });
