@@ -5,7 +5,7 @@
     $: href = `/api/attachment/${attachment.id.replace("attachment:", "")}`;
 </script>
 
-<a {href}>
+<a {href} target="_blank">
     {#if attachment.mime_type.startsWith("image/")}
         <img
             class="max-w-full"
