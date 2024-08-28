@@ -343,6 +343,7 @@
         handlers.startRecording = () => {
             $allowRecording = true;
             recordingHandler.start(true);
+            recordingHandler.startUpload();
         };
         handlers.stopRecording = () => {
             recordingHandler.stop(true);
