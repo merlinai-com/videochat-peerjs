@@ -119,10 +119,7 @@ export interface RoomClientToServerEvents {
 
 export interface MessageServerToClientEvents {
     /** Some messages from the server */
-    messages: (
-        ms: JsonSafe<Message<Attachment>>[],
-        isResponse: boolean
-    ) => void;
+    messages: (ms: JsonSafe<Message<Attachment>>[], isNew: boolean) => void;
 
     /** Information about some users */
     users: (us: { id: JsonSafe<UserId>; name?: string }[]) => void;

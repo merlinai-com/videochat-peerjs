@@ -79,7 +79,7 @@ export function initMessageNamespace(
 
         const groupListeners: Listeners<JsonSafe<GroupId>, PublisherEvents> = {
             message(message) {
-                socket.emit("messages", [message], false);
+                socket.emit("messages", [message], true);
             },
 
             user(id, name) {
@@ -102,7 +102,7 @@ export function initMessageNamespace(
             ensureSub(pub, subs, id, groupListeners);
 
             const messages = await db.getMessages(groupId);
-            socket.emit("messages", Database.jsonSafe(messages), true);
+            socket.emit("messages", Database.jsonSafe(messages), false);
         });
 
         socket.on("send", async (arg, callback) => {

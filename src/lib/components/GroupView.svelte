@@ -126,11 +126,11 @@
     onMount(() => {
         socket = messageSocket();
 
-        socket.on("messages", (ms, isResponse) => {
+        socket.on("messages", (ms, isNew) => {
             if (!selectedGroup) return;
 
             const onlySelf = ms.every((m) => m.in === user?.id);
-            if (!onlySelf && !isResponse) audio.play("message");
+            if (!onlySelf && isNew) audio.play("message").catch(console.error);
 
             addMessages(
                 ms.filter((message) => selectedGroup.id == message.out)
