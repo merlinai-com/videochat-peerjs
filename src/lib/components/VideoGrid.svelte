@@ -60,7 +60,7 @@
                 on:click={() => emit("select", stream)}
                 class_="w-full h-full"
                 {stream}
-                muted={stream === streams.local}
+                muted={stream.id === streams.local?.id}
                 {name}
             />
         </div>

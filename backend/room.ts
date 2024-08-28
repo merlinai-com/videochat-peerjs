@@ -171,6 +171,7 @@ export function initRoomNamespace(
             roomSub = pub.subscribe(Database.jsonSafe(socket.data.roomId), {
                 listeners: roomListeners,
             });
+            await db.joinRoom(socket.data.roomId, socket.data.user!.id);
         }
 
         const leaveRoom = async () => {
@@ -203,10 +204,11 @@ export function initRoomNamespace(
         });
 
         socket.on("join_room", async (roomId) => {
-            if (!Database.isRecord("room", roomId))
+            try {
+                socket.data.roomId = Database.parseRecord("room", roomId);
+            } catch {
                 throw new UserError(`Not a room ID: ${roomId}`);
-
-            socket.data.roomId = Database.parseRecord("room", roomId);
+            }
 
             const room = await db.queryRoom(socket.data.roomId);
             if (!room) throw new UserError(`Unknown room: ${roomId}`);

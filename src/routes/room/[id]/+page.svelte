@@ -376,7 +376,9 @@
             }
         });
 
-        socket.emit("join_room", data.room.id);
+        socket.on("connect", () => {
+            socket.emit("join_room", data.room.id);
+        });
     });
 </script>
 

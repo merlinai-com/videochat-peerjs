@@ -25,15 +25,15 @@
 {#if hasVideo}
     <video
         on:click={(ev) => emit("click", ev)}
-        on:contextmenu={(ev) => emit("contextmenu", ev)}
+        on:contextmenu|preventDefault={(ev) => emit("contextmenu", ev)}
         class={class_}
         bind:this={element}
         disablepictureinpicture
-        on:contextmenu|preventDefault
         autoplay
         {muted}
     >
     </video>
+    {muted}
 {:else}
     <div class={class_}>
         <div class="w-full h-full flex-col justify-center align-center">
