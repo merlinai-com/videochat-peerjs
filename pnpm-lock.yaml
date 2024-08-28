@@ -25,9 +25,6 @@ dependencies:
     version: 9.0.1
 
 devDependencies:
-  '@isaacs/ttlcache':
-    specifier: ^1.4.1
-    version: 1.4.1
   '@sveltejs/adapter-auto':
     specifier: ^3.2.4
     version: 3.2.4(@sveltejs/kit@2.5.22)
@@ -422,11 +419,6 @@ packages:
       strip-ansi-cjs: /strip-ansi@6.0.1
       wrap-ansi: 8.1.0
       wrap-ansi-cjs: /wrap-ansi@7.0.0
-    dev: true
-
-  /@isaacs/ttlcache@1.4.1:
-    resolution: {integrity: sha512-RQgQ4uQ+pLbqXfOmieB91ejmLwvSgv9nLx6sT6sD83s7umBypgg+OIBOBbEUiJXrfpnp9j0mRhYYdzp9uqq3lA==}
-    engines: {node: '>=12'}
     dev: true
 
   /@jridgewell/gen-mapping@0.3.5:
