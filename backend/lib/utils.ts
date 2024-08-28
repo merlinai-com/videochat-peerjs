@@ -55,6 +55,24 @@ export function omit<T extends object, K extends keyof T>(
     });
 }
 
+/**
+ * Keep the given key(s) from a list of objects.
+ * This does not modify any of the original values.
+ */
+export function pick<T extends object, K extends keyof T>(
+    vals: T[],
+    keys: K | K[]
+): Pick<T, K>[] {
+    if (!Array.isArray(keys)) keys = [keys];
+    return vals.map((val) => {
+        const v: { [key in K]?: T[key] } = {};
+        for (const key of keys) {
+            v[key] = val[key];
+        }
+        return v as { [key in K]: T[key] };
+    });
+}
+
 export function enumerate<T>(vals: T[]): { index: number; value: T }[] {
     return vals.map((value, index) => ({ value, index }));
 }

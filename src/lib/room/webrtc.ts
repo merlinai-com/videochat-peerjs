@@ -1,5 +1,6 @@
 import type { JsonSafe, UserId } from "backend/lib/database";
 import type { RoomSocket, SignalId } from "backend/lib/types";
+import { pick } from "backend/lib/utils";
 import "webrtc-adapter";
 
 interface PeerState {
@@ -9,7 +10,9 @@ interface PeerState {
     ignoreOffer: boolean;
     settingRemoteAnswer: boolean;
     senders: Map<MediaStreamTrack, RTCRtpSender>;
-    user?: JsonSafe<UserId>;
+    user: JsonSafe<UserId>;
+    iceErrors: RTCPeerConnectionIceErrorEvent[];
+    currentIceErrors: RTCPeerConnectionIceErrorEvent[];
 }
 
 const mediaTypes = ["video", "audio", "screen"] as const;
@@ -21,6 +24,43 @@ export interface RtcHandler {
     removeStream: (stream: MediaStream) => void;
     removeTrack: (track: MediaStreamTrack) => void;
     addStream: (stream: MediaStream) => void;
+}
+
+function initPeer(
+    peers: Record<SignalId, PeerState>,
+    id: SignalId,
+    rtcConfig: RTCConfiguration,
+    polite: boolean,
+    user: JsonSafe<UserId>
+): { pc: PeerState; new: boolean } {
+    let pc = peers[id];
+    if (pc) return { pc, new: false };
+
+    pc = {
+        conn: new RTCPeerConnection(rtcConfig),
+        polite,
+        makingOffer: false,
+        ignoreOffer: false,
+        settingRemoteAnswer: false,
+        senders: new Map(),
+        user,
+        iceErrors: [],
+        currentIceErrors: [],
+    };
+
+    peers[id] = pc;
+
+    return { pc, new: true };
+}
+
+function logIceErrors(iceErrors: RTCPeerConnectionIceErrorEvent[]) {
+    pick(iceErrors, [
+        "errorCode",
+        "errorText",
+        "address",
+        "url",
+        "port",
+    ]).forEach(console.error);
 }
 
 export function createRtcHandler(
@@ -53,6 +93,21 @@ export function createRtcHandler(
             console.groupEnd();
         }
         console.groupEnd();
+    };
+
+    window.Zap.debug.webrtcIceErrors = () => {
+        console.group("WebRTC ICE errors");
+        for (const [id, { iceErrors }] of Object.entries(peers)) {
+            console.groupCollapsed(id);
+            logIceErrors(iceErrors);
+            console.groupEnd();
+        }
+        console.groupEnd();
+    };
+
+    window.Zap.debug.webrtc = () => {
+        window.Zap.debug.webrtcStats();
+        window.Zap.debug.webrtcIceErrors();
     };
 
     socket.on("signal", async ({ from, desc, candidate }) => {
@@ -99,55 +154,67 @@ export function createRtcHandler(
         callbacks.addPeer(id, user);
 
         // Initialise the peer connection
-        const pc = (peers[id] ??= {
-            conn: new RTCPeerConnection(rtcConfig),
-            polite,
-            makingOffer: false,
-            ignoreOffer: false,
-            settingRemoteAnswer: false,
-            senders: new Map(),
-            user,
-        });
+        const { pc, new: isNew } = initPeer(peers, id, rtcConfig, polite, user);
 
-        function onRemoveTrack(this: MediaStream, ev: MediaStreamTrackEvent) {
-            if (this.active) callbacks.addStream(id, this);
-            else callbacks.removeStream(id, this);
-        }
+        if (isNew) {
+            pc.conn.addEventListener("icecandidateerror", (error) => {
+                pc.iceErrors.push(error);
+                pc.currentIceErrors.push(error);
+            });
 
-        pc.conn.addEventListener("track", ({ track, streams }) => {
-            for (const stream of streams) {
-                stream.addEventListener("removetrack", onRemoveTrack);
+            pc.conn.addEventListener("iceconnectionstatechange", () => {
+                if (pc.conn.iceConnectionState === "failed") {
+                    console.groupCollapsed(`ICE failed: ${id}`);
+                    console.debug("Connection:", pc.conn);
+                    logIceErrors(pc.currentIceErrors);
+                    console.groupEnd();
+
+                    // TODO: backoff?
+                    pc.conn.restartIce();
+                }
+            });
+
+            function onRemoveTrack(this: MediaStream) {
+                if (this.active) callbacks.addStream(id, this);
+                else callbacks.removeStream(id, this);
             }
-            track.addEventListener("unmute", () => {
-                for (const stream of streams) {
-                    callbacks.addStream(id, stream);
-                }
-            });
-            track.addEventListener("ended", () => {
-                for (const stream of streams) {
-                    if (!stream.active) callbacks.removeStream(id, stream);
-                }
-            });
-        });
 
-        pc.conn.addEventListener("negotiationneeded", async () => {
-            try {
-                pc.makingOffer = true;
-                await pc.conn.setLocalDescription();
-                socket.emit("signal", {
-                    to: id,
-                    desc: pc.conn.localDescription,
+            pc.conn.addEventListener("track", ({ track, streams }) => {
+                for (const stream of streams) {
+                    stream.addEventListener("removetrack", onRemoveTrack);
+                }
+                track.addEventListener("unmute", () => {
+                    for (const stream of streams) {
+                        callbacks.addStream(id, stream);
+                    }
                 });
-            } catch (err) {
-                console.error(err);
-            } finally {
-                pc.makingOffer = false;
-            }
-        });
+                track.addEventListener("ended", () => {
+                    for (const stream of streams) {
+                        if (!stream.active) callbacks.removeStream(id, stream);
+                    }
+                });
+            });
 
-        pc.conn.addEventListener("icecandidate", ({ candidate }) => {
-            socket.emit("signal", { to: id, candidate });
-        });
+            pc.conn.addEventListener("negotiationneeded", async () => {
+                try {
+                    pc.currentIceErrors = [];
+                    pc.makingOffer = true;
+                    await pc.conn.setLocalDescription();
+                    socket.emit("signal", {
+                        to: id,
+                        desc: pc.conn.localDescription,
+                    });
+                } catch (err) {
+                    console.error(err);
+                } finally {
+                    pc.makingOffer = false;
+                }
+            });
+
+            pc.conn.addEventListener("icecandidate", ({ candidate }) => {
+                socket.emit("signal", { to: id, candidate });
+            });
+        }
 
         if (streams.local) handler.addStream(streams.local);
         if (streams.screen) {
